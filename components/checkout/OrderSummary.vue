@@ -3,6 +3,7 @@
  * Order summary for checkout
  */
 import type { CheckoutItem, CheckoutPricing, ShippingMethod, PaymentProvider } from '~/types'
+import { getImageUrl } from '~/utils'
 
 interface Props {
   items: CheckoutItem[]
@@ -20,19 +21,19 @@ const props = defineProps<Props>()
 
     <!-- Items -->
     <div class="space-y-4 max-h-64 overflow-y-auto">
-      <div 
-        v-for="item in items" 
-        :key="item.id"
-        class="flex gap-3"
-      >
-        <div class="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800 flex-shrink-0">
-          <NuxtImg
-            v-if="item.image"
-            :src="item.image"
-            :alt="item.name"
-            class="w-full h-full object-cover"
-          />
-        </div>
+        <div
+          v-for="item in items"
+          :key="item.id"
+          class="flex gap-3"
+        >
+          <div class="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800 flex-shrink-0">
+            <NuxtImg
+              v-if="getImageUrl(item.image)"
+              :src="getImageUrl(item.image)"
+              :alt="item.name"
+              class="w-full h-full object-cover"
+            />
+          </div>
         <div class="flex-1 min-w-0">
           <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100 line-clamp-1">
             {{ item.name }}

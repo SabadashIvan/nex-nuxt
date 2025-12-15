@@ -2,13 +2,15 @@
  * Cart domain types
  */
 
+import type { ImageValue } from './common'
+
 export interface CartItem {
   id: string
   variant_id: number
   name: string
   slug: string
   sku: string
-  image?: string
+  image?: ImageValue
   quantity: number
   price: number
   effective_price: number

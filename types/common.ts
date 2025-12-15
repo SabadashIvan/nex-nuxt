@@ -36,6 +36,9 @@ export interface ApiResponse<T> {
   message?: string
 }
 
+// Image value as returned by backend
+export type ImageValue = string | { url?: string | null } | null | undefined
+
 // Loading state helper
 export type LoadingState = 'idle' | 'loading' | 'success' | 'error'
 

@@ -4,6 +4,7 @@
  */
 import { Heart, ShoppingCart, Eye } from 'lucide-vue-next'
 import type { ProductListItem } from '~/types'
+import { getImageUrl } from '~/utils'
 import { useCartStore } from '~/stores/cart.store'
 import { useFavoritesStore } from '~/stores/favorites.store'
 
@@ -15,6 +16,10 @@ const props = defineProps<Props>()
 
 const isAddingToCart = ref(false)
 const isTogglingFavorite = ref(false)
+
+const productImage = computed(() => {
+  return getImageUrl(props.product.image) || props.product.images?.[0]?.url
+})
 
 // Access stores inside computed
 const isFavorite = computed(() => {
@@ -45,8 +50,8 @@ async function toggleFavorite() {
     <!-- Image -->
     <NuxtLink :to="`/product/${product.slug}`" class="block relative aspect-square overflow-hidden">
       <NuxtImg
-        v-if="product.image"
-        :src="product.image"
+        v-if="productImage"
+        :src="productImage"
         :alt="product.name"
         class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
         loading="lazy"

@@ -5,6 +5,7 @@
 import { Trash2 } from 'lucide-vue-next'
 import type { CartItem } from '~/types'
 import { useCartStore } from '~/stores/cart.store'
+import { getImageUrl } from '~/utils'
 
 interface Props {
   item: CartItem
@@ -16,6 +17,8 @@ const isUpdating = ref(false)
 const isRemoving = ref(false)
 
 const quantity = ref(props.item.quantity)
+
+const imageUrl = computed(() => getImageUrl(props.item.image))
 
 // Watch for external changes
 watch(() => props.item.quantity, (newVal) => {
@@ -57,8 +60,8 @@ watch(quantity, (newVal) => {
     <NuxtLink :to="`/product/${item.slug}`" class="flex-shrink-0">
       <div class="w-24 h-24 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800">
         <NuxtImg
-          v-if="item.image"
-          :src="item.image"
+          v-if="imageUrl"
+          :src="imageUrl"
           :alt="item.name"
           class="w-full h-full object-cover"
         />

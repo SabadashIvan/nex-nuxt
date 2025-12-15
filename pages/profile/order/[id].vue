@@ -4,22 +4,25 @@
  */
 import { ArrowLeft, Package, Truck, MapPin, CreditCard } from 'lucide-vue-next'
 import { formatDate } from '~/utils/format'
+import { getImageUrl } from '~/utils'
 
 definePageMeta({
   layout: 'profile',
 })
 
 const route = useRoute()
-const ordersStore = useOrdersStore()
+const ordersStore = shallowRef<ReturnType<typeof useOrdersStore> | null>(null)
 
 const orderId = computed(() => parseInt(route.params.id as string))
 
 onMounted(async () => {
-  await ordersStore.fetchOrder(orderId.value)
+  const store = useOrdersStore()
+  ordersStore.value = store
+  await store.fetchOrder(orderId.value)
 })
 
-const order = computed(() => ordersStore.order)
-const loading = computed(() => ordersStore.loading)
+const order = computed(() => ordersStore.value?.order)
+const loading = computed(() => ordersStore.value?.loading ?? false)
 
 function getStatusVariant(status: string) {
   const variants: Record<string, 'default' | 'success' | 'warning' | 'error' | 'info'> = {
@@ -90,8 +93,8 @@ function getStatusVariant(status: string) {
               >
                 <div class="w-20 h-20 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800 flex-shrink-0">
                   <NuxtImg
-                    v-if="item.image"
-                    :src="item.image"
+                    v-if="getImageUrl(item.image)"
+                    :src="getImageUrl(item.image)"
                     :alt="item.name"
                     class="w-full h-full object-cover"
                   />

@@ -3,6 +3,7 @@
  */
 
 import type { Address, ShippingMethod, PaymentProvider } from './checkout'
+import type { ImageValue } from './common'
 
 export interface OrderItem {
   id: number
@@ -10,7 +11,7 @@ export interface OrderItem {
   name: string
   slug: string
   sku: string
-  image?: string
+  image?: ImageValue
   quantity: number
   price: number
   total: number

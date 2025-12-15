@@ -4,6 +4,7 @@
  */
 import { ArrowRight, Truck, Shield, RefreshCw, Headphones } from 'lucide-vue-next'
 import { useCatalogStore } from '~/stores/catalog.store'
+import { getImageUrl } from '~/utils'
 
 // Fetch featured products and categories on SSR
 // Access store inside callbacks to ensure Pinia is initialized
@@ -112,8 +113,8 @@ const features = [
             class="group relative aspect-square rounded-xl overflow-hidden bg-gray-200 dark:bg-gray-800"
           >
             <NuxtImg
-              v-if="category.image"
-              :src="category.image"
+              v-if="getImageUrl(category.image)"
+              :src="getImageUrl(category.image)"
               :alt="category.name"
               class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
             />

@@ -4,23 +4,36 @@
  */
 import { Package, Eye } from 'lucide-vue-next'
 import { formatDate } from '~/utils/format'
+import { getImageUrl } from '~/utils'
 
 definePageMeta({
   layout: 'profile',
 })
 
-const ordersStore = useOrdersStore()
+const ordersStore = shallowRef<ReturnType<typeof useOrdersStore> | null>(null)
+
+const defaultPagination = {
+  page: 1,
+  lastPage: 1,
+  perPage: 10,
+  total: 0,
+}
 
 onMounted(async () => {
-  await ordersStore.fetchOrders()
+  const store = useOrdersStore()
+  ordersStore.value = store
+  await store.fetchOrders()
 })
 
-const orders = computed(() => ordersStore.orders)
-const pagination = computed(() => ordersStore.pagination)
-const loading = computed(() => ordersStore.loading)
+const orders = computed(() => ordersStore.value?.orders ?? [])
+const pagination = computed(() => ordersStore.value?.pagination ?? defaultPagination)
+const loading = computed(() => ordersStore.value?.loading ?? false)
 
 async function handlePageChange(page: number) {
-  await ordersStore.goToPage(page)
+  const store = ordersStore.value
+  if (!store) return
+
+  await store.goToPage(page)
 }
 
 function getStatusVariant(status: string) {
@@ -83,8 +96,8 @@ function getStatusVariant(status: string) {
             class="flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800"
           >
             <NuxtImg
-              v-if="item.image"
-              :src="item.image"
+              v-if="getImageUrl(item.image)"
+              :src="getImageUrl(item.image)"
               :alt="item.name"
               class="w-full h-full object-cover"
             />

@@ -2,14 +2,14 @@
  * Catalog domain types
  */
 
-import type { Pagination } from './common'
+import type { ImageValue, Pagination } from './common'
 
 export interface Category {
   id: number
   name: string
   slug: string
   description?: string
-  image?: string
+  image?: ImageValue
   parent_id?: number | null
   children?: Category[]
   products_count?: number
@@ -102,6 +102,7 @@ export interface ProductListItem {
   slug: string
   title: string
   is_favorite: boolean
+  image?: ImageValue
   images: ProductImage[]
   price: ProductPrice
   is_in_stock: boolean

@@ -8,15 +8,22 @@ definePageMeta({
   layout: 'profile',
 })
 
-const authStore = useAuthStore()
-const ordersStore = useOrdersStore()
+const authStore = shallowRef<ReturnType<typeof useAuthStore> | null>(null)
+const ordersStore = shallowRef<ReturnType<typeof useOrdersStore> | null>(null)
 
 // Load recent orders
 onMounted(async () => {
-  await ordersStore.fetchOrders(1)
+  const auth = useAuthStore()
+  const orders = useOrdersStore()
+
+  authStore.value = auth
+  ordersStore.value = orders
+
+  await orders.fetchOrders(1)
 })
 
-const recentOrders = computed(() => ordersStore.orders.slice(0, 3))
+const userName = computed(() => authStore.value?.userName ?? '')
+const recentOrders = computed(() => ordersStore.value?.orders.slice(0, 3) ?? [])
 
 const quickLinks = [
   { icon: Package, label: 'My Orders', to: '/profile/orders', description: 'View order history' },
@@ -31,7 +38,7 @@ const quickLinks = [
     <!-- Welcome section -->
     <div class="bg-white dark:bg-gray-900 rounded-lg p-6 mb-8">
       <h1 class="text-2xl font-bold text-gray-900 dark:text-gray-100">
-        Welcome back, {{ authStore.userName }}!
+        Welcome back, {{ userName }}!
       </h1>
       <p class="mt-1 text-gray-500 dark:text-gray-400">
         Manage your account, orders, and preferences.

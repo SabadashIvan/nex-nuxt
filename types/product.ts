@@ -2,6 +2,7 @@
  * Product domain types
  */
 
+import type { ImageValue } from './common'
 export interface ProductImage {
   id: number
   url: string
@@ -70,7 +71,7 @@ export interface RelatedProduct {
   slug: string
   price: number
   effective_price: number
-  image?: string
+  image?: ImageValue
 }
 
 export interface ProductState {

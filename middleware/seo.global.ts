@@ -4,7 +4,6 @@
  */
 
 import { NOINDEX_ROUTES } from '~/types/seo'
-import { getActivePinia } from 'pinia'
 import { useSeoStore } from '~/stores/seo.store'
 
 export default defineNuxtRouteMiddleware(async (to) => {
@@ -27,7 +26,7 @@ export default defineNuxtRouteMiddleware(async (to) => {
   }
 
   // Only try to access store if Pinia is initialized
-  const pinia = getActivePinia()
+  const pinia = useNuxtApp().$pinia
   if (!pinia) {
     // Pinia not available yet - apply fallback SEO
     useHead({
@@ -41,7 +40,7 @@ export default defineNuxtRouteMiddleware(async (to) => {
 
   // Fetch SEO metadata for public pages
   try {
-    const seoStore = useSeoStore()
+    const seoStore = useSeoStore(pinia)
     await seoStore.fetch(to.path)
     seoStore.apply()
   } catch (error) {

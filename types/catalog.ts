@@ -20,7 +20,7 @@ export interface ProductFilter {
   page?: number
   per_page?: number
   sort?: 'newest' | 'price_asc' | 'price_desc'
-  include_facets?: boolean
+  include_facets?: 0 | 1
   
   // Filter parameters (nested under filters.* prefix in query string)
   // These map to: filters.q, filters.price_min, filters.brands, etc.
@@ -51,6 +51,7 @@ export interface FilterGroup {
 
 export interface CatalogFilters {
   categories?: FilterOption[]
+  brands?: FilterOption[]
   attributes?: FilterGroup[]
   price_range?: {
     min: number
@@ -63,7 +64,7 @@ export interface CatalogState {
   products: ProductListItem[]
   filters: ProductFilter
   availableFilters: CatalogFilters
-  sorting: string
+  sorting: 'newest' | 'price_asc' | 'price_desc'
   pagination: Pagination
   loading: boolean
 }
@@ -98,6 +99,7 @@ export interface ProductPrice {
 
 export interface ProductListItem {
   id: number
+  product_id: number
   sku: string
   slug: string
   title: string
@@ -107,6 +109,10 @@ export interface ProductListItem {
   price: ProductPrice
   is_in_stock: boolean
   variant_options: VariantOptions
+  rating?: {
+    value: number
+    count: number
+  }
 }
 
 export interface VariantsResponse {
@@ -160,7 +166,4 @@ export interface Brand {
   slug: string
   logo?: string
 }
-
-// Re-export VariantsResponse for convenience
-export type { VariantsResponse }
 

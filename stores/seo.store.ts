@@ -22,6 +22,13 @@ export const useSeoStore = defineStore('seo', {
     },
 
     /**
+     * Get current page H1 title
+     */
+    titleH1: (state): string | undefined => {
+      return state.current?.title_h1
+    },
+
+    /**
      * Get current page description
      */
     description: (state): string => {
@@ -38,16 +45,18 @@ export const useSeoStore = defineStore('seo', {
 
   actions: {
     /**
-     * Fetch SEO metadata for a URL
+     * Fetch SEO metadata for a full frontend URL
+     * @param fullUrl - Full frontend URL (e.g., https://example.com/catalog)
      */
-    async fetch(url: string): Promise<void> {
+    async fetch(fullUrl: string): Promise<void> {
       const api = useApi()
       this.loading = true
       this.error = null
 
       try {
-        const seoMeta = await api.get<SeoMeta>('/site', { url })
-        this.current = seoMeta
+        const response = await api.get<{ data: SeoMeta }>('/site', { url: fullUrl })
+        // API returns { data: { ... } } structure
+        this.current = response.data
       } catch (error) {
         this.error = 'Failed to load SEO metadata'
         console.error('SEO fetch error:', error)
@@ -68,6 +77,18 @@ export const useSeoStore = defineStore('seo', {
       if (!this.current) return
 
       const meta = this.current
+      const config = useRuntimeConfig()
+
+      // Build canonical URL - use provided canonical or build from current URL
+      let canonicalUrl = meta.canonical
+      if (!canonicalUrl && typeof window !== 'undefined') {
+        canonicalUrl = window.location.href
+      } else if (!canonicalUrl) {
+        // SSR: build from siteUrl and path
+        const siteUrl = config.public.siteUrl as string || 'http://localhost:3000'
+        const route = useRoute()
+        canonicalUrl = `${siteUrl}${route.fullPath}`
+      }
 
       useHead({
         title: meta.title,
@@ -75,13 +96,13 @@ export const useSeoStore = defineStore('seo', {
           { name: 'description', content: meta.description },
           ...(meta.keywords ? [{ name: 'keywords', content: meta.keywords }] : []),
           ...(meta.robots ? [{ name: 'robots', content: meta.robots }] : []),
-          // Open Graph
-          ...(meta.og_title ? [{ property: 'og:title', content: meta.og_title }] : []),
-          ...(meta.og_description ? [{ property: 'og:description', content: meta.og_description }] : []),
+          // Open Graph - use og_* fields if provided, otherwise fallback to title/description
+          { property: 'og:title', content: meta.og_title || meta.title },
+          { property: 'og:description', content: meta.og_description || meta.description },
           ...(meta.og_image ? [{ property: 'og:image', content: meta.og_image }] : []),
         ],
         link: [
-          ...(meta.canonical ? [{ rel: 'canonical', href: meta.canonical }] : []),
+          ...(canonicalUrl ? [{ rel: 'canonical', href: canonicalUrl }] : []),
         ],
       })
     },

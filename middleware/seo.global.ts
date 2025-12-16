@@ -41,8 +41,15 @@ export default defineNuxtRouteMiddleware(async (to) => {
 
   // Fetch SEO metadata for public pages
   try {
+    const config = useRuntimeConfig()
     const seoStore = useSeoStore()
-    await seoStore.fetch(to.path)
+    
+    // Build full frontend URL
+    const siteUrl = config.public.siteUrl as string || 'http://localhost:3000'
+    // Use fullPath to include query parameters
+    const fullUrl = `${siteUrl}${to.fullPath}`
+    
+    await seoStore.fetch(fullUrl)
     seoStore.apply()
   } catch (error) {
     console.error('Failed to fetch SEO metadata:', error)

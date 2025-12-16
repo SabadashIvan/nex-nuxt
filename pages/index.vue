@@ -12,7 +12,7 @@ const { data: featuredProducts, pending: productsLoading } = await useAsyncData(
   'home-featured-products',
   async () => {
     const catalogStore = useCatalogStore()
-    await catalogStore.fetchProducts({ per_page: 8, sort: 'popular' })
+    await catalogStore.fetchProducts({ per_page: 8, sort: 'newest' })
     return catalogStore.products
   }
 )
@@ -140,7 +140,7 @@ const features = [
             Featured Products
           </h2>
           <NuxtLink 
-            to="/catalog?sort=popular" 
+            to="/catalog?sort=newest" 
             class="text-primary-600 dark:text-primary-400 hover:underline font-medium"
           >
             View All

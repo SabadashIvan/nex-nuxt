@@ -21,6 +21,14 @@ const productImage = computed(() => {
   return getImageUrl(props.product.image) || props.product.images?.[0]?.url
 })
 
+const hasDiscount = computed(() => {
+  if (!props.product.price) return false
+  // Parse price strings: "$587.53" -> 587.53
+  const listPrice = parseFloat(props.product.price.list_minor.replace(/[^0-9.]/g, ''))
+  const effectivePrice = parseFloat(props.product.price.effective_minor.replace(/[^0-9.]/g, ''))
+  return !isNaN(listPrice) && !isNaN(effectivePrice) && effectivePrice < listPrice
+})
+
 // Access stores inside computed
 const isFavorite = computed(() => {
   try {
@@ -52,7 +60,7 @@ async function toggleFavorite() {
       <NuxtImg
         v-if="productImage"
         :src="productImage"
-        :alt="product.name"
+        :alt="product.title"
         class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
         loading="lazy"
       />
@@ -65,7 +73,7 @@ async function toggleFavorite() {
 
       <!-- Discount badge -->
       <div 
-        v-if="product.effective_price < product.price"
+        v-if="hasDiscount"
         class="absolute top-3 left-3 bg-red-500 text-white text-xs font-semibold px-2 py-1 rounded"
       >
         Sale
@@ -91,7 +99,7 @@ async function toggleFavorite() {
 
       <!-- Out of stock overlay -->
       <div 
-        v-if="!product.in_stock"
+        v-if="!product.is_in_stock"
         class="absolute inset-0 bg-black/50 flex items-center justify-center"
       >
         <span class="bg-white dark:bg-gray-900 px-4 py-2 rounded-lg font-medium text-gray-900 dark:text-gray-100">
@@ -103,14 +111,14 @@ async function toggleFavorite() {
     <!-- Content -->
     <div class="p-4">
       <!-- Category or rating could go here -->
-      <div v-if="product.rating" class="mb-2">
-        <UiRating :rating="product.rating" :reviews-count="product.reviews_count" size="sm" />
+      <div v-if="product.rating && product.rating.value > 0" class="mb-2">
+        <UiRating :rating="product.rating.value" :reviews-count="product.rating.count" size="sm" />
       </div>
 
       <!-- Title -->
       <NuxtLink :to="`/product/${product.slug}`">
         <h3 class="font-medium text-gray-900 dark:text-gray-100 line-clamp-2 hover:text-primary-600 dark:hover:text-primary-400 transition-colors">
-          {{ product.name }}
+          {{ product.title }}
         </h3>
       </NuxtLink>
 
@@ -118,14 +126,12 @@ async function toggleFavorite() {
       <div class="mt-2">
         <UiPrice 
           :price="product.price" 
-          :effective-price="product.effective_price" 
-          :currency="product.currency"
         />
       </div>
 
       <!-- Add to cart button -->
       <button
-        v-if="product.in_stock"
+        v-if="product.is_in_stock"
         class="mt-4 w-full flex items-center justify-center gap-2 px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         :disabled="isAddingToCart"
         @click="addToCart"

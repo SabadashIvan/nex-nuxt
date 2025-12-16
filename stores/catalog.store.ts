@@ -16,13 +16,15 @@ import type {
 } from '~/types'
 import { getErrorMessage } from '~/utils/errors'
 
+type SortOption = 'newest' | 'price_asc' | 'price_desc'
+
 interface CatalogState {
   categories: Category[]
   currentCategory: Category | null
   products: ProductListItem[]
   filters: ProductFilter
   availableFilters: CatalogFilters
-  sorting: string
+  sorting: SortOption
   pagination: Pagination
   brands: Brand[]
   loading: boolean
@@ -168,35 +170,54 @@ export const useCatalogStore = defineStore('catalog', {
       // Merge with current filters
       const mergedParams = { ...this.filters, ...params }
       
+      // Validate and normalize sort value
+      const validSorts: SortOption[] = ['newest', 'price_asc', 'price_desc']
+      const sortValue = mergedParams.sort || this.sorting || 'newest'
+      const normalizedSort: SortOption = validSorts.includes(sortValue as SortOption) 
+        ? (sortValue as SortOption) 
+        : 'newest'
+      
       // Build query parameters according to YAML API spec
-      const queryParams: Record<string, string | number | boolean | undefined> = {
+      const queryParams: Record<string, string | number | string[] | undefined> = {
         page: mergedParams.page || this.pagination.page,
         per_page: mergedParams.per_page || this.pagination.perPage,
-        sort: mergedParams.sort || this.sorting || 'newest',
-        include_facets: mergedParams.include_facets !== false, // Default to true
+        sort: normalizedSort,
+        include_facets: mergedParams.include_facets !== undefined ? mergedParams.include_facets : 1, // Default to 1
       }
 
-      // Add filter parameters with filters.* prefix (exact YAML format)
+      // Add filter parameters with filters[] format
       if (mergedParams.filters) {
         if (mergedParams.filters.q) {
-          queryParams['filters.q'] = mergedParams.filters.q
+          queryParams['filters[q]'] = mergedParams.filters.q
         }
         if (mergedParams.filters.price_min !== undefined) {
-          queryParams['filters.price_min'] = String(mergedParams.filters.price_min)
+          queryParams['filters[price_min]'] = String(mergedParams.filters.price_min)
         }
         if (mergedParams.filters.price_max !== undefined) {
-          queryParams['filters.price_max'] = String(mergedParams.filters.price_max)
+          queryParams['filters[price_max]'] = String(mergedParams.filters.price_max)
         }
         if (mergedParams.filters.brands) {
-          queryParams['filters.brands'] = mergedParams.filters.brands // Comma-separated: "1,3,5"
+          queryParams['filters[brands]'] = mergedParams.filters.brands // Comma-separated: "1,3,5"
         }
         if (mergedParams.filters.categories) {
-          queryParams['filters.categories'] = mergedParams.filters.categories // Comma-separated: "10,12"
+          queryParams['filters[categories]'] = mergedParams.filters.categories // Comma-separated: "10,12"
         }
         if (mergedParams.filters.attributes && mergedParams.filters.attributes.length > 0) {
-          // Attributes: filters.attributes[0]="4,5", filters.attributes[1]="7,8"
-          mergedParams.filters.attributes.forEach((attrGroup, index) => {
-            queryParams[`filters.attributes[${index}]`] = attrGroup
+          // Attributes: filters[attributes][]=value1, filters[attributes][]=value2
+          mergedParams.filters.attributes.forEach((attrGroup) => {
+            // For arrays, we need to append multiple values with the same key
+            // URLSearchParams will handle this correctly
+            const key = 'filters[attributes][]'
+            if (queryParams[key]) {
+              // If key already exists, convert to array and append
+              const existing = Array.isArray(queryParams[key]) 
+                ? queryParams[key] as string[]
+                : [String(queryParams[key])]
+              existing.push(attrGroup)
+              queryParams[key] = existing
+            } else {
+              queryParams[key] = attrGroup
+            }
           })
         }
       }
@@ -225,15 +246,20 @@ export const useCatalogStore = defineStore('catalog', {
               label: cat.title || '—',
               count: cat.count,
             })),
+            brands: facets.brands?.map(brand => ({
+              value: String(brand.id),
+              label: brand.title || '—',
+              count: brand.count,
+            })),
             attributes: facets.attributes?.map(attr => ({
               code: attr.code,
               name: attr.title,
               type: 'checkbox' as const,
-              options: attr.values.map(val => ({
+              options: attr.values?.map(val => ({
                 value: String(val.id),
                 label: val.label,
                 count: val.count,
-              })),
+              })) || [],
             })),
             price_range: facets.price ? {
               min: facets.price.min,
@@ -267,7 +293,19 @@ export const useCatalogStore = defineStore('catalog', {
      * Apply filters and reload products
      */
     async applyFilters(filters: ProductFilter): Promise<void> {
-      this.filters = { ...this.filters, ...filters }
+      // Deep merge filters object
+      if (filters.filters) {
+        this.filters = {
+          ...this.filters,
+          ...filters,
+          filters: {
+            ...this.filters.filters,
+            ...filters.filters,
+          }
+        }
+      } else {
+        this.filters = { ...this.filters, ...filters }
+      }
       this.pagination.page = 1 // Reset to first page
       await this.fetchProducts()
     },
@@ -276,7 +314,11 @@ export const useCatalogStore = defineStore('catalog', {
      * Apply sorting and reload products
      */
     async applySorting(sort: string): Promise<void> {
-      this.sorting = sort
+      const validSorts: SortOption[] = ['newest', 'price_asc', 'price_desc']
+      const normalizedSort: SortOption = validSorts.includes(sort as SortOption) 
+        ? (sort as SortOption) 
+        : 'newest'
+      this.sorting = normalizedSort
       this.pagination.page = 1
       await this.fetchProducts()
     },

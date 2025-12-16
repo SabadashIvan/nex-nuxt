@@ -48,7 +48,7 @@ export interface UseApiOptions {
 export interface ApiRequestOptions extends UseApiOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
   body?: unknown
-  query?: Record<string, string | number | boolean | undefined>
+  query?: Record<string, string | number | boolean | string[] | undefined>
 }
 
 /**
@@ -172,7 +172,7 @@ export function useApi() {
    */
   function buildUrl(
     endpoint: string, 
-    query?: Record<string, string | number | boolean | undefined>,
+    query?: Record<string, string | number | boolean | string[] | undefined>,
     options?: UseApiOptions
   ): string {
     // Normalize endpoint
@@ -191,11 +191,20 @@ export function useApi() {
       const params = new URLSearchParams()
       Object.entries(query).forEach(([key, value]) => {
         if (value !== undefined && value !== null) {
-          params.append(key, String(value))
+          // Handle arrays for filters[attributes][] format
+          if (Array.isArray(value)) {
+            value.forEach((item) => {
+              params.append(key, String(item))
+            })
+          } else {
+            params.append(key, String(value))
+          }
         }
       })
-      const queryString = params.toString()
+      let queryString = params.toString()
+      // Decode square brackets in keys (filters[price_min] should not be filters%5Bprice_min%5D)
       if (queryString) {
+        queryString = queryString.replace(/%5B/g, '[').replace(/%5D/g, ']')
         path = `${path}?${queryString}`
       }
     }
@@ -272,7 +281,7 @@ export function useApi() {
    */
   async function get<T>(
     endpoint: string,
-    query?: Record<string, string | number | boolean | undefined>,
+    query?: Record<string, string | number | boolean | string[] | undefined>,
     options?: UseApiOptions
   ): Promise<T> {
     return request<T>(endpoint, { ...options, method: 'GET', query })

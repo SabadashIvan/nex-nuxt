@@ -47,7 +47,7 @@ const currentYear = new Date().getFullYear()
               </NuxtLink>
             </li>
             <li>
-              <NuxtLink to="/catalog?sort=popular" class="text-sm hover:text-white transition-colors">
+              <NuxtLink to="/catalog?sort=price_desc" class="text-sm hover:text-white transition-colors">
                 Best Sellers
               </NuxtLink>
             </li>

@@ -3,6 +3,11 @@
  */
 
 export interface SeoMeta {
+  id?: number
+  path?: string
+  seoable_id?: number | null
+  seoable_type?: string | null
+  title_h1?: string
   title: string
   description: string
   keywords?: string
@@ -12,8 +17,6 @@ export interface SeoMeta {
   og_image?: string
   og_title?: string
   og_description?: string
-  seoable_id?: number
-  seoable_type?: string
 }
 
 export interface SeoState {

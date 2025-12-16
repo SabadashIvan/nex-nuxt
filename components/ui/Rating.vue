@@ -5,7 +5,7 @@
 import { Star } from 'lucide-vue-next'
 
 interface Props {
-  rating: number
+  rating: number | string | undefined
   maxRating?: number
   reviewsCount?: number
   showCount?: boolean
@@ -19,10 +19,20 @@ const props = withDefaults(defineProps<Props>(), {
   size: 'md',
 })
 
+// Normalize rating to number, defaulting to 0 if invalid
+const normalizedRating = computed(() => {
+  if (props.rating === undefined || props.rating === null) {
+    return 0
+  }
+  const num = typeof props.rating === 'string' ? parseFloat(props.rating) : props.rating
+  return isNaN(num) ? 0 : Math.max(0, Math.min(num, props.maxRating))
+})
+
 const stars = computed(() => {
   const result = []
-  const fullStars = Math.floor(props.rating)
-  const hasHalfStar = props.rating % 1 >= 0.5
+  const rating = normalizedRating.value
+  const fullStars = Math.floor(rating)
+  const hasHalfStar = rating % 1 >= 0.5
 
   for (let i = 0; i < props.maxRating; i++) {
     if (i < fullStars) {
@@ -65,7 +75,7 @@ const textSize = computed(() => {
 
     <!-- Rating value -->
     <span :class="['font-medium text-gray-700 dark:text-gray-300', textSize]">
-      {{ rating.toFixed(1) }}
+      {{ normalizedRating.toFixed(1) }}
     </span>
 
     <!-- Reviews count -->

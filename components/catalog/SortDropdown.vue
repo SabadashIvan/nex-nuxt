@@ -17,12 +17,9 @@ const emit = defineEmits<{
 const isOpen = ref(false)
 
 const options = [
-  { value: 'default', label: 'Default' },
   { value: 'newest', label: 'Newest' },
   { value: 'price_asc', label: 'Price: Low to High' },
   { value: 'price_desc', label: 'Price: High to Low' },
-  { value: 'popular', label: 'Popularity' },
-  { value: 'rating', label: 'Rating' },
 ]
 
 const currentLabel = computed(() => {

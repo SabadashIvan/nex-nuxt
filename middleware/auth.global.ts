@@ -5,6 +5,7 @@
  * Uses session-based authentication (Laravel Sanctum)
  */
 
+import { getActivePinia } from 'pinia'
 import { useAuthStore } from '~/stores/auth.store'
 
 // Routes that require authentication
@@ -24,13 +25,13 @@ export default defineNuxtRouteMiddleware(async (to) => {
   if (import.meta.server) return
 
   // Only try to access store if Pinia is initialized
-  const pinia = useNuxtApp().$pinia
+  const pinia = getActivePinia()
   if (!pinia) {
     // Pinia not available yet - skip auth checks
     return
   }
 
-  const authStore = useAuthStore(pinia)
+  const authStore = useAuthStore()
   
   // Initialize auth state if not done yet (check session)
   if (!authStore.initialized) {

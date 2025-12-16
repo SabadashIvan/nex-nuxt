@@ -5,6 +5,7 @@
  */
 
 import { getToken, TOKEN_KEYS, setToken } from '~/utils/tokens'
+import { getActivePinia } from 'pinia'
 
 // Default values
 const DEFAULT_LOCALE = 'en'
@@ -24,7 +25,7 @@ export default defineNuxtRouteMiddleware(async () => {
   }
 
   // Only try to access store if Pinia is initialized
-  const pinia = useNuxtApp().$pinia
+  const pinia = getActivePinia()
   if (!pinia) {
     // Pinia not available yet - plugin will handle initialization
     return
@@ -33,7 +34,7 @@ export default defineNuxtRouteMiddleware(async () => {
   // Try to initialize store if Pinia is available
   try {
     const { useSystemStore } = await import('~/stores/system.store')
-    const systemStore = useSystemStore(pinia)
+    const systemStore = useSystemStore()
     
     // Only run initialization once
     if (!systemStore.initialized) {

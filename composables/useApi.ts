@@ -11,6 +11,7 @@ import {
   ensureComparisonToken,
 } from '~/utils/tokens'
 import { useAuthStore } from '~/stores/auth.store'
+import { getActivePinia } from 'pinia'
 
 // API base URL from runtime config
 const API_PREFIX = '/api/v1'
@@ -240,20 +241,25 @@ export function useApi() {
       // Handle auth errors globally (but not during auth flows)
       // Only handle on client side to avoid Pinia context issues during SSR
       if (isAuthError(apiError) && !isAuthEndpoint && import.meta.client) {
-        const pinia = useNuxtApp().$pinia
-        if (pinia) {
-          try {
-            const authStore = useAuthStore(pinia)
-            const { logout } = authStore
-            await logout()
-
-            // Redirect to login
-            const router = useRouter()
-            router.push('/auth/login')
-          } catch (storeError) {
-            // Store access failed, skip auto-logout
-            console.warn('Could not access auth store for auto-logout:', storeError)
+        try {
+          // Check if Pinia is available before accessing store
+          // getActivePinia() returns null if Pinia isn't initialized
+          const pinia = getActivePinia()
+          if (pinia) {
+            try {
+              const authStore = useAuthStore()
+              await authStore.logout()
+              
+              // Redirect to login
+              const router = useRouter()
+              router.push('/auth/login')
+            } catch (storeError) {
+              // Store access failed, skip auto-logout
+              console.warn('Could not access auth store for auto-logout:', storeError)
+            }
           }
+        } catch {
+          // Pinia check failed, skip auto-logout
         }
       }
 

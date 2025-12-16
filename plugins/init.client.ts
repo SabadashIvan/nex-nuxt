@@ -6,16 +6,9 @@
 import { useSystemStore } from '~/stores/system.store'
 import { useAuthStore } from '~/stores/auth.store'
 
-export default defineNuxtPlugin(async (nuxtApp) => {
-  const pinia = nuxtApp.$pinia
-
-  if (!pinia) {
-    console.error('Pinia instance is not available during client init')
-    return
-  }
-
-  const systemStore = useSystemStore(pinia)
-  const authStore = useAuthStore(pinia)
+export default defineNuxtPlugin(async () => {
+  const systemStore = useSystemStore()
+  const authStore = useAuthStore()
 
   // Initialize system config (locales, currencies)
   if (!systemStore.initialized) {

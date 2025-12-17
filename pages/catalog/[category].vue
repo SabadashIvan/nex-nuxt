@@ -11,11 +11,13 @@ const route = useRoute()
 // Helpers for reactive route access
 const categorySlug = computed(() => (route.params.category as string) || '')
 
+const asyncKey = computed(() => `category-${categorySlug.value}`)
+
 const { data: category, pending, error, refresh } = await useAsyncData(
-  () => `category-${categorySlug.value}`,
+  asyncKey.value,
   async () => {
     const slug = categorySlug.value
-    const query = route.query
+    const query = routeQuery.value
     const filters = {
       q: query.q as string | undefined,
       sort: query.sort as string | undefined,

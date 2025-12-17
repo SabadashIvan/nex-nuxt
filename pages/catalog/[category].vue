@@ -8,22 +8,8 @@ import type { Category, ProductFilter } from '~/types'
 // Call useRoute() at top level of setup - this is safe in Nuxt 3
 const route = useRoute()
 
-// Computed for reactive access to route params and query
-// Access route properties directly - computed will be reactive
-const categorySlug = computed(() => {
-  try {
-    return route.params.category as string
-  } catch {
-    return ''
-  }
-})
-const routeQuery = computed(() => {
-  try {
-    return route.query
-  } catch {
-    return {}
-  }
-})
+// Helpers for reactive route access
+const categorySlug = computed(() => (route.params.category as string) || '')
 
 const asyncKey = computed(() => `category-${categorySlug.value}`)
 
@@ -110,7 +96,7 @@ const { data: category, pending, error, refresh } = await useAsyncData(
   {
     server: true,
     default: () => null,
-    watch: [categorySlug, routeQuery]
+    watch: [() => route.fullPath],
   }
 )
 

@@ -25,20 +25,13 @@ const routeQuery = computed(() => {
   }
 })
 
+const asyncKey = computed(() => `category-${categorySlug.value}`)
+
 const { data: category, pending, error, refresh } = await useAsyncData(
-  () => {
-    // Use categorySlug computed to get current slug
-    const slug = categorySlug.value
-    const key = `category-${slug}`
-    console.log('useAsyncData key:', key, 'slug:', slug)
-    return key
-  },
+  asyncKey.value,
   async () => {
-    // Get route inside async callback to ensure we have the latest route
-    const route = useRoute()
-    const slug = route.params.category as string
-    const query = route.query
-    console.log('Fetching category data for slug:', slug)
+    const slug = categorySlug.value
+    const query = routeQuery.value
     const filters = {
       q: query.q as string | undefined,
       sort: query.sort as string | undefined,
@@ -112,10 +105,9 @@ const { data: category, pending, error, refresh } = await useAsyncData(
     } else {
       console.warn('Category not found or missing ID:', cat)
     }
-    console.log('Returning category from useAsyncData:', cat)
     return cat
   },
-  { 
+  {
     server: true,
     default: () => null,
     watch: [categorySlug, routeQuery]

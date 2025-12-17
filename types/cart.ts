@@ -36,11 +36,13 @@ export interface Cart {
   totals: CartTotals
   token: string
   items_count: number
+  version?: number
 }
 
 export interface AddToCartPayload {
-  variant_id: number
-  quantity: number
+  variant_id?: number
+  sku?: string
+  qty: number
 }
 
 export interface UpdateCartItemPayload {

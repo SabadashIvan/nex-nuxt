@@ -7,6 +7,7 @@
 import { defineStore } from 'pinia'
 import type { 
   Category, 
+  CategoryResponse,
   ProductListItem, 
   ProductFilter, 
   CatalogFilters,
@@ -144,9 +145,46 @@ export const useCatalogStore = defineStore('catalog', {
       this.error = null
 
       try {
-        const category = await api.get<Category>(`/catalog/categories/${slug}`, {
+        console.log('Fetching category with slug:', slug)
+        const response = await api.get<CategoryResponse | Category>(`/catalog/categories/${slug}`, {
           withProducts: withProducts ? 'true' : undefined,
         })
+        
+        console.log('Category API response:', response)
+        
+        if (!response) {
+          console.warn('Category API returned null/undefined for slug:', slug)
+          return null
+        }
+        
+        // Handle both wrapped (data) and direct response
+        let category: Category
+        if (response && typeof response === 'object' && 'data' in response) {
+          const dataResponse = response as CategoryResponse
+          console.log('Response has data wrapper, extracting:', dataResponse.data)
+          if (dataResponse.data) {
+            category = dataResponse.data
+          } else {
+            console.warn('Category response has data property but data is null/undefined')
+            return null
+          }
+        } else {
+          console.log('Response is direct category object')
+          category = response as Category
+        }
+        
+        // Validate category has required fields
+        if (!category || !category.slug) {
+          console.warn('Invalid category response - missing slug:', category)
+          return null
+        }
+        
+        // Ensure name field for backward compatibility
+        if (!category.name && category.title) {
+          category.name = category.title
+        }
+        
+        console.log('Successfully parsed category:', category)
         this.currentCategory = category
         return category
       } catch (error) {

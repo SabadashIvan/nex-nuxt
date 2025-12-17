@@ -119,16 +119,51 @@ export const useCartStore = defineStore('cart', {
 
     /**
      * Add item to cart
+     * @param variantId - Product variant ID (optional if sku is provided)
+     * @param quantity - Quantity to add
+     * @param sku - Product variant SKU (optional if variantId is provided)
+     * @param idempotencyKey - Optional idempotency key for request deduplication
      */
-    async addItem(variantId: number, quantity = 1): Promise<boolean> {
+    async addItem(
+      variantId?: number, 
+      quantity = 1, 
+      sku?: string,
+      idempotencyKey?: string
+    ): Promise<boolean> {
       const api = useApi()
       this.initializeToken()
       this.loading = true
       this.error = null
 
       try {
-        const payload: AddToCartPayload = { variant_id: variantId, quantity }
-        const cart = await api.post<Cart>('/cart/items', payload, { cart: true })
+        // Build payload - either variant_id or sku must be provided
+        const payload: AddToCartPayload = { qty: quantity }
+        if (variantId) {
+          payload.variant_id = variantId
+        } else if (sku) {
+          payload.sku = sku
+        } else {
+          throw new Error('Either variantId or sku must be provided')
+        }
+
+        // Build headers with If-Match (cart version) and optional Idempotency-Key
+        const headers: Record<string, string> = {}
+        
+        // Add If-Match header if cart exists and has version
+        if (this.cart?.version !== undefined) {
+          headers['If-Match'] = String(this.cart.version)
+        }
+
+        // Add Idempotency-Key if provided
+        if (idempotencyKey) {
+          headers['Idempotency-Key'] = idempotencyKey
+        }
+
+        const cart = await api.post<Cart>('/cart/items', payload, { 
+          cart: true,
+          headers: Object.keys(headers).length > 0 ? headers : undefined
+        })
+        
         this.cart = cart
         return true
       } catch (error) {
@@ -150,7 +185,17 @@ export const useCartStore = defineStore('cart', {
 
       try {
         const payload: UpdateCartItemPayload = { quantity }
-        const cart = await api.put<Cart>(`/cart/items/${itemId}`, payload, { cart: true })
+        const headers: Record<string, string> = {}
+        
+        // Add If-Match header if cart exists and has version
+        if (this.cart?.version !== undefined) {
+          headers['If-Match'] = String(this.cart.version)
+        }
+
+        const cart = await api.put<Cart>(`/cart/items/${itemId}`, payload, { 
+          cart: true,
+          headers: Object.keys(headers).length > 0 ? headers : undefined
+        })
         this.cart = cart
         return true
       } catch (error) {
@@ -171,7 +216,17 @@ export const useCartStore = defineStore('cart', {
       this.error = null
 
       try {
-        const cart = await api.delete<Cart>(`/cart/items/${itemId}`, { cart: true })
+        const headers: Record<string, string> = {}
+        
+        // Add If-Match header if cart exists and has version
+        if (this.cart?.version !== undefined) {
+          headers['If-Match'] = String(this.cart.version)
+        }
+
+        const cart = await api.delete<Cart>(`/cart/items/${itemId}`, { 
+          cart: true,
+          headers: Object.keys(headers).length > 0 ? headers : undefined
+        })
         this.cart = cart
         return true
       } catch (error) {
@@ -193,7 +248,17 @@ export const useCartStore = defineStore('cart', {
 
       try {
         const payload: CartItemOptionsPayload = { options }
-        const cart = await api.put<Cart>(`/cart/items/${itemId}/options`, payload, { cart: true })
+        const headers: Record<string, string> = {}
+        
+        // Add If-Match header if cart exists and has version
+        if (this.cart?.version !== undefined) {
+          headers['If-Match'] = String(this.cart.version)
+        }
+
+        const cart = await api.put<Cart>(`/cart/items/${itemId}/options`, payload, { 
+          cart: true,
+          headers: Object.keys(headers).length > 0 ? headers : undefined
+        })
         this.cart = cart
         return true
       } catch (error) {
@@ -215,7 +280,17 @@ export const useCartStore = defineStore('cart', {
 
       try {
         const payload: CouponPayload = { code }
-        const response = await api.post<{ cart: Cart; coupon: AppliedCoupon }>('/cart/coupons', payload, { cart: true })
+        const headers: Record<string, string> = {}
+        
+        // Add If-Match header if cart exists and has version
+        if (this.cart?.version !== undefined) {
+          headers['If-Match'] = String(this.cart.version)
+        }
+
+        const response = await api.post<{ cart: Cart; coupon: AppliedCoupon }>('/cart/coupons', payload, { 
+          cart: true,
+          headers: Object.keys(headers).length > 0 ? headers : undefined
+        })
         
         if (response.cart) {
           this.cart = response.cart
@@ -243,7 +318,17 @@ export const useCartStore = defineStore('cart', {
       this.error = null
 
       try {
-        const cart = await api.delete<Cart>(`/cart/coupons/${code}`, { cart: true })
+        const headers: Record<string, string> = {}
+        
+        // Add If-Match header if cart exists and has version
+        if (this.cart?.version !== undefined) {
+          headers['If-Match'] = String(this.cart.version)
+        }
+
+        const cart = await api.delete<Cart>(`/cart/coupons/${code}`, { 
+          cart: true,
+          headers: Object.keys(headers).length > 0 ? headers : undefined
+        })
         this.cart = cart
         this.appliedCoupons = this.appliedCoupons.filter(c => c.code !== code)
         return true

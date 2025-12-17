@@ -5,11 +5,7 @@
 
 import type { ApiError } from '~/types'
 import { parseApiError, isAuthError } from '~/utils/errors'
-import { 
-  ensureGuestToken,
-  ensureCartToken,
-  ensureComparisonToken,
-} from '~/utils/tokens'
+import { generateUUID } from '~/utils/tokens'
 import { useAuthStore } from '~/stores/auth.store'
 import { getActivePinia } from 'pinia'
 
@@ -79,6 +75,14 @@ function getXsrfToken(): string | null {
 export function useApi() {
   const config = useRuntimeConfig()
   
+  // Get all cookies at the top level of the composable
+  // This ensures they're called within the proper Nuxt context
+  const localeCookie = useCookie('locale')
+  const currencyCookie = useCookie('currency')
+  const cartTokenCookie = useCookie('cart_token')
+  const guestTokenCookie = useCookie('guest_id')
+  const comparisonTokenCookie = useCookie('comparison_token')
+  
   /**
    * Get the base URL for API requests
    * - SSR: Use full backend URL (server-to-server)
@@ -115,12 +119,7 @@ export function useApi() {
       'Accept': 'application/json',
     }
 
-    // Get locale/currency from cookies (works for both SSR and CSR)
-    // We always use cookies to avoid Pinia context issues during SSR
-    // Cookies are kept in sync with store values by the system store
-    const localeCookie = useCookie('locale')
-    const currencyCookie = useCookie('currency')
-    
+    // Use locale/currency from cookies (already initialized at top level)
     if (localeCookie.value) {
       headers['Accept-Language'] = localeCookie.value
     } else {
@@ -141,21 +140,36 @@ export function useApi() {
       headers['X-XSRF-TOKEN'] = xsrfToken
     }
 
-    // Add cart token
+    // Add cart token - use cookie directly to avoid context issues
     if (options.cart) {
-      const cartToken = ensureCartToken()
+      let cartToken = cartTokenCookie.value
+      if (!cartToken) {
+        // Generate new token if doesn't exist
+        cartToken = generateUUID()
+        cartTokenCookie.value = cartToken
+      }
       headers['X-Cart-Token'] = cartToken
     }
 
-    // Add guest token
+    // Add guest token - use cookie directly to avoid context issues
     if (options.guest) {
-      const guestToken = ensureGuestToken()
+      let guestToken = guestTokenCookie.value
+      if (!guestToken) {
+        // Generate new token if doesn't exist
+        guestToken = generateUUID()
+        guestTokenCookie.value = guestToken
+      }
       headers['X-Guest-Id'] = guestToken
     }
 
-    // Add comparison token
+    // Add comparison token - use cookie directly to avoid context issues
     if (options.comparison) {
-      const comparisonToken = ensureComparisonToken()
+      let comparisonToken = comparisonTokenCookie.value
+      if (!comparisonToken) {
+        // Generate new token if doesn't exist
+        comparisonToken = generateUUID()
+        comparisonTokenCookie.value = comparisonToken
+      }
       headers['X-Comparison-Token'] = comparisonToken
     }
 
@@ -220,6 +234,16 @@ export function useApi() {
     options: ApiRequestOptions = {}
   ): Promise<T> {
     const { method = 'GET', body, query, retry = 0, credentials = true, ...headerOptions } = options
+    
+    // For modifying requests (POST, PUT, PATCH, DELETE), ensure CSRF cookie is fetched
+    // Only on client-side and only if XSRF token is not already available
+    if (import.meta.client && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+      const xsrfToken = getXsrfToken()
+      if (!xsrfToken) {
+        // Fetch CSRF cookie before making the request
+        await fetchCsrfCookie()
+      }
+    }
     
     const path = buildUrl(endpoint, query, headerOptions)
     const headers = buildHeaders(headerOptions)

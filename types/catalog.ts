@@ -6,13 +6,26 @@ import type { ImageValue, Pagination } from './common'
 
 export interface Category {
   id: number
-  name: string
+  name?: string // Legacy field, use title instead
+  title?: string // New field from API
   slug: string
   description?: string
-  image?: ImageValue
+  image?: ImageValue | {
+    id: number
+    url: string
+  } | null
+  icon?: ImageValue | {
+    id: number
+    url: string
+  } | null
   parent_id?: number | null
+  position?: number
   children?: Category[]
   products_count?: number
+}
+
+export interface CategoryResponse {
+  data: Category
 }
 
 export interface ProductFilter {
@@ -165,5 +178,41 @@ export interface Brand {
   name: string
   slug: string
   logo?: string
+}
+
+/**
+ * Search suggest API response types
+ */
+export interface SearchSuggestion {
+  text: string
+  score: number
+  source: string
+}
+
+export interface SearchSuggestCategory {
+  id: number
+  title: string
+  slug: string | null
+  count: number
+}
+
+export interface SearchSuggestBrand {
+  id: number
+  title: string
+  slug: string | null
+  count: number
+}
+
+export interface SearchSuggestData {
+  query: string
+  history: string[]
+  suggestions: SearchSuggestion[]
+  variants: ProductListItem[]
+  brands: SearchSuggestBrand[]
+  categories: SearchSuggestCategory[]
+}
+
+export interface SearchSuggestResponse {
+  data: SearchSuggestData
 }
 

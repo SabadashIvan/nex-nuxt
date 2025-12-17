@@ -3,78 +3,91 @@
  * Catalog page - SSR for SEO
  */
 import { useCatalogStore } from '~/stores/catalog.store'
+import type { ProductFilter } from '~/types'
 
 const route = useRoute()
 
-// Get initial query params
-const initialFilters = computed(() => ({
-  q: route.query.q as string | undefined,
-  sort: route.query.sort as string | undefined,
-  page: route.query.page ? parseInt(route.query.page as string) : 1,
-  categories: route.query.categories as string | undefined,
-  brands: route.query.brands as string | undefined,
-  price_min: route.query.price_min ? Number(route.query.price_min) : undefined,
-  price_max: route.query.price_max ? Number(route.query.price_max) : undefined,
-  attributes: route.query.attributes ? (route.query.attributes as string).split(',') : undefined,
-}))
+// Create a computed for route query to use in watch
+const routeQuery = computed(() => route.query)
 
 // Fetch products with SSR - access store inside callback
 const { pending, refresh } = await useAsyncData(
-  `catalog-${JSON.stringify(route.query)}`,
+  'catalog-products',
   async () => {
     const catalogStore = useCatalogStore()
     
-    // Build filters object from URL params
-    const filters: any = {
-      page: initialFilters.value.page,
+    // Get query params directly from route inside async callback
+    const query = route.query
+    const initialFilters = {
+      q: query.q as string | undefined,
+      sort: query.sort as string | undefined,
+      page: query.page ? parseInt(query.page as string) : 1,
+      categories: query.categories as string | undefined,
+      brands: query.brands as string | undefined,
+      price_min: query.price_min ? Number(query.price_min) : undefined,
+      price_max: query.price_max ? Number(query.price_max) : undefined,
+      attributes: query.attributes ? (query.attributes as string).split(',') : undefined,
     }
     
-    if (initialFilters.value.q || 
-        initialFilters.value.categories || 
-        initialFilters.value.brands || 
-        initialFilters.value.price_min !== undefined || 
-        initialFilters.value.price_max !== undefined ||
-        initialFilters.value.attributes) {
+    // Build filters object from URL params only
+    // On /catalog page, we don't add categories filter unless explicitly in URL
+    const filters: any = {
+      page: initialFilters.page,
+    }
+    
+    // Only add filters object if there are any filters in URL
+    if (initialFilters.q || 
+        initialFilters.categories || 
+        initialFilters.brands || 
+        initialFilters.price_min !== undefined || 
+        initialFilters.price_max !== undefined ||
+        initialFilters.attributes) {
       filters.filters = {}
       
-      if (initialFilters.value.q) {
-        filters.filters.q = initialFilters.value.q
+      if (initialFilters.q) {
+        filters.filters.q = initialFilters.q
       }
-      if (initialFilters.value.categories) {
-        filters.filters.categories = initialFilters.value.categories
+      // Only add categories if explicitly in URL - don't add by default on /catalog
+      if (initialFilters.categories) {
+        filters.filters.categories = initialFilters.categories
       }
-      if (initialFilters.value.brands) {
-        filters.filters.brands = initialFilters.value.brands
+      if (initialFilters.brands) {
+        filters.filters.brands = initialFilters.brands
       }
-      if (initialFilters.value.price_min !== undefined) {
-        filters.filters.price_min = initialFilters.value.price_min
+      if (initialFilters.price_min !== undefined) {
+        filters.filters.price_min = initialFilters.price_min
       }
-      if (initialFilters.value.price_max !== undefined) {
-        filters.filters.price_max = initialFilters.value.price_max
+      if (initialFilters.price_max !== undefined) {
+        filters.filters.price_max = initialFilters.price_max
       }
-      if (initialFilters.value.attributes && initialFilters.value.attributes.length > 0) {
-        filters.filters.attributes = initialFilters.value.attributes
+      if (initialFilters.attributes && initialFilters.attributes.length > 0) {
+        filters.filters.attributes = initialFilters.attributes
       }
     }
+    // If no filters in URL, ensure filters object is not created (to avoid sending empty filters)
     
     await catalogStore.fetchProducts(filters)
     
     // Apply filters to store so they're available for ActiveFilters component
-    if (filters.filters) {
-      catalogStore.filters = { ...catalogStore.filters, ...filters }
-    }
+    // Only set filters if they exist - don't preserve old filters from store
+    catalogStore.filters = filters
     
-    if (initialFilters.value.sort) {
+    if (initialFilters.sort) {
       // Validate sort value before setting
       const validSorts = ['newest', 'price_asc', 'price_desc']
-      const sortValue = initialFilters.value.sort
+      const sortValue = initialFilters.sort
       if (validSorts.includes(sortValue)) {
         catalogStore.sorting = sortValue as 'newest' | 'price_asc' | 'price_desc'
       }
+    } else {
+      // Reset to default if no sort in URL
+      catalogStore.sorting = 'newest'
     }
     return catalogStore.products
   },
-  { watch: [() => route.query] }
+  { 
+    watch: [routeQuery] 
+  }
 )
 
 // Fetch categories - access store inside callback
@@ -124,9 +137,9 @@ const activeFilters = computed(() => {
 })
 
 // Handle filter changes
-async function handleFilterChange(filters: Record<string, unknown>) {
+async function handleFilterChange(filters: ProductFilter) {
   const catalogStore = useCatalogStore()
-  await catalogStore.applyFilters(filters as Record<string, string | number | undefined>)
+  await catalogStore.applyFilters(filters)
   updateUrl()
 }
 

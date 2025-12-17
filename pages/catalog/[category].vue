@@ -3,97 +3,145 @@
  * Category page - SSR for SEO
  */
 import { useCatalogStore } from '~/stores/catalog.store'
+import type { Category, ProductFilter } from '~/types'
 
+// Call useRoute() at top level of setup - this is safe in Nuxt 3
 const route = useRoute()
 
-const categorySlug = computed(() => route.params.category as string)
+// Computed for reactive access to route params and query
+// Access route properties directly - computed will be reactive
+const categorySlug = computed(() => {
+  try {
+    return route.params.category as string
+  } catch {
+    return ''
+  }
+})
+const routeQuery = computed(() => {
+  try {
+    return route.query
+  } catch {
+    return {}
+  }
+})
 
-// Get initial query params
-const initialFilters = computed(() => ({
-  q: route.query.q as string | undefined,
-  sort: route.query.sort as string | undefined,
-  page: route.query.page ? parseInt(route.query.page as string) : 1,
-  categories: route.query.categories as string | undefined,
-  brands: route.query.brands as string | undefined,
-  price_min: route.query.price_min ? Number(route.query.price_min) : undefined,
-  price_max: route.query.price_max ? Number(route.query.price_max) : undefined,
-  attributes: route.query.attributes ? (route.query.attributes as string).split(',') : undefined,
-}))
-
-// Fetch category and products with SSR - access store inside callback
-const { data: category, pending, error } = await useAsyncData(
-  `category-${categorySlug.value}-${JSON.stringify(route.query)}`,
+const { data: category, pending, error, refresh } = await useAsyncData(
+  () => {
+    // Use categorySlug computed to get current slug
+    const slug = categorySlug.value
+    const key = `category-${slug}`
+    console.log('useAsyncData key:', key, 'slug:', slug)
+    return key
+  },
   async () => {
+    // Get route inside async callback to ensure we have the latest route
+    const route = useRoute()
+    const slug = route.params.category as string
+    const query = route.query
+    console.log('Fetching category data for slug:', slug)
+    const filters = {
+      q: query.q as string | undefined,
+      sort: query.sort as string | undefined,
+      page: query.page ? parseInt(query.page as string) : 1,
+      categories: query.categories as string | undefined,
+      brands: query.brands as string | undefined,
+      price_min: query.price_min ? Number(query.price_min) : undefined,
+      price_max: query.price_max ? Number(query.price_max) : undefined,
+      attributes: query.attributes ? (query.attributes as string).split(',') : undefined,
+    }
+    console.log('Fetching category data for slug:', slug)
     const catalogStore = useCatalogStore()
-    const cat = await catalogStore.fetchCategory(categorySlug.value)
-    if (cat) {
+    const cat = await catalogStore.fetchCategory(slug)
+    console.log('Fetched category:', cat)
+    if (cat && cat.id) {
       // Build filters object from URL params
-      const filters: any = {
-        page: initialFilters.value.page,
+      // Always include current category ID in filters
+      const filterParams: any = {
+        page: filters.page,
+        filters: {
+          // Always filter by current category ID
+          categories: String(cat.id),
+        },
       }
       
-      if (initialFilters.value.q || 
-          initialFilters.value.categories || 
-          initialFilters.value.brands || 
-          initialFilters.value.price_min !== undefined || 
-          initialFilters.value.price_max !== undefined ||
-          initialFilters.value.attributes) {
-        filters.filters = {}
-        
-        if (initialFilters.value.q) {
-          filters.filters.q = initialFilters.value.q
-        }
-        if (initialFilters.value.categories) {
-          filters.filters.categories = initialFilters.value.categories
-        }
-        if (initialFilters.value.brands) {
-          filters.filters.brands = initialFilters.value.brands
-        }
-        if (initialFilters.value.price_min !== undefined) {
-          filters.filters.price_min = initialFilters.value.price_min
-        }
-        if (initialFilters.value.price_max !== undefined) {
-          filters.filters.price_max = initialFilters.value.price_max
-        }
-        if (initialFilters.value.attributes && initialFilters.value.attributes.length > 0) {
-          filters.filters.attributes = initialFilters.value.attributes
-        }
+      // Add additional filters from URL params
+      if (filters.q) {
+        filterParams.filters.q = filters.q
       }
       
-      await catalogStore.fetchProducts(filters)
+      // If URL has categories param, merge with current category ID
+      if (filters.categories) {
+        const urlCategoryIds = filters.categories.split(',')
+        // Ensure current category ID is included
+        if (!urlCategoryIds.includes(String(cat.id))) {
+          urlCategoryIds.push(String(cat.id))
+        }
+        filterParams.filters.categories = urlCategoryIds.join(',')
+      }
+      
+      if (filters.brands) {
+        filterParams.filters.brands = filters.brands
+      }
+      if (filters.price_min !== undefined) {
+        filterParams.filters.price_min = filters.price_min
+      }
+      if (filters.price_max !== undefined) {
+        filterParams.filters.price_max = filters.price_max
+      }
+      if (filters.attributes && filters.attributes.length > 0) {
+        filterParams.filters.attributes = filters.attributes
+      }
+      
+      console.log('Fetching products with filters:', filterParams)
+      await catalogStore.fetchProducts(filterParams)
+      console.log('Products fetched:', catalogStore.products.length)
+      console.log('Products data:', catalogStore.products)
+      console.log('Pagination:', catalogStore.pagination)
       
       // Apply filters to store so they're available for ActiveFilters component
-      if (filters.filters) {
-        catalogStore.filters = { ...catalogStore.filters, ...filters }
-      }
+      catalogStore.filters = { ...catalogStore.filters, ...filterParams }
       
-      if (initialFilters.value.sort) {
+      if (filters.sort) {
         // Validate sort value before setting
         const validSorts = ['newest', 'price_asc', 'price_desc']
-        const sortValue = initialFilters.value.sort
+        const sortValue = filters.sort
         if (validSorts.includes(sortValue)) {
           catalogStore.sorting = sortValue as 'newest' | 'price_asc' | 'price_desc'
         }
       }
+    } else {
+      console.warn('Category not found or missing ID:', cat)
     }
+    console.log('Returning category from useAsyncData:', cat)
     return cat
   },
-  { watch: [categorySlug, () => route.query] }
+  { 
+    server: true,
+    default: () => null,
+    watch: [categorySlug, routeQuery]
+  }
 )
 
-// Handle 404
-if (!category.value && !pending.value) {
-  throw createError({
-    statusCode: 404,
-    statusMessage: 'Category Not Found',
-  })
-}
+// Handle 404 - check after data loads
+watch([pending, category, error], ([isPending, cat, err]) => {
+  if (!isPending && !cat && !err) {
+    throw createError({
+      statusCode: 404,
+      statusMessage: 'Category Not Found',
+    })
+  }
+})
+
 
 // Computed values - access store inside computed
 const products = computed(() => {
   try {
-    return useCatalogStore().products
-  } catch {
+    const store = useCatalogStore()
+    const productsList = store.products
+    console.log('Products computed - count:', productsList.length, 'data:', productsList)
+    return productsList
+  } catch (error) {
+    console.error('Error getting products from store:', error)
     return []
   }
 })
@@ -130,18 +178,66 @@ const activeFilters = computed(() => {
 const breadcrumbs = computed(() => {
   const items = [{ label: 'Catalog', to: '/catalog' }]
   if (category.value) {
-    items.push({ label: category.value.name, to: `/catalog/${categorySlug.value}` })
+    const categoryName = category.value.title || category.value.name || 'Category'
+    items.push({ label: categoryName, to: `/catalog/${categorySlug.value}` })
   }
   return items
 })
 
+// Get category image URL
+function getCategoryImageUrl(image: Category['image']): string | undefined {
+  if (!image || image === null) return undefined
+  if (typeof image === 'string') return image
+  if (typeof image === 'object' && 'url' in image) {
+    return image.url || undefined
+  }
+  return undefined
+}
+
+// Get category icon URL
+function getCategoryIconUrl(icon: Category['icon']): string | undefined {
+  if (!icon || icon === null) return undefined
+  if (typeof icon === 'string') return icon
+  if (typeof icon === 'object' && 'url' in icon) {
+    return icon.url || undefined
+  }
+  return undefined
+}
+
+// Get category display name
+const categoryName = computed(() => {
+  if (!category.value) return ''
+  return category.value.title || category.value.name || 'Category'
+})
+
 // Handle filter changes
-async function handleFilterChange(filters: Record<string, unknown>) {
+async function handleFilterChange(filters: ProductFilter) {
   const catalogStore = useCatalogStore()
+  
+  // Ensure current category ID is always included
+  const updatedFilters = { ...filters }
+  if (!updatedFilters.filters) {
+    updatedFilters.filters = {}
+  }
+  
+  // Always include current category ID
+  if (category.value?.id) {
+    const currentCategoryId = String(category.value.id)
+    if (updatedFilters.filters.categories) {
+      const categoryIds = updatedFilters.filters.categories.split(',')
+      if (!categoryIds.includes(currentCategoryId)) {
+        categoryIds.push(currentCategoryId)
+        updatedFilters.filters.categories = categoryIds.join(',')
+      }
+    } else {
+      updatedFilters.filters.categories = currentCategoryId
+    }
+  }
+  
   await catalogStore.applyFilters({
-    ...filters,
+    ...updatedFilters,
     category: categorySlug.value,
-  } as Record<string, string | number | undefined>)
+  } as ProductFilter)
   updateUrl()
 }
 
@@ -165,8 +261,18 @@ async function handlePageChange(page: number) {
   if (catalogStore.sorting !== 'newest') {
     query.sort = catalogStore.sorting
   }
+  // Categories - only add to URL if there are multiple categories
   if (catalogStore.filters.filters?.categories) {
-    query.categories = catalogStore.filters.filters.categories
+    const categoryIds = catalogStore.filters.filters.categories.split(',')
+    if (category.value?.id) {
+      const currentCategoryId = String(category.value.id)
+      const otherCategories = categoryIds.filter(id => id !== currentCategoryId)
+      if (otherCategories.length > 0) {
+        query.categories = catalogStore.filters.filters.categories
+      }
+    } else {
+      query.categories = catalogStore.filters.filters.categories
+    }
   }
   if (catalogStore.filters.filters?.brands) {
     query.brands = catalogStore.filters.filters.brands
@@ -204,10 +310,24 @@ async function handleRemoveFilter(type: string, value: string) {
   
   switch (type) {
     case 'categories': {
+      // Don't allow removing current category ID
+      if (category.value && String(category.value.id) === value) {
+        return // Can't remove current category
+      }
+      
       const categories = currentFilters.filters.categories?.split(',') || []
       const filtered = categories.filter(id => id !== value)
+      
+      // Always ensure current category ID is included
+      if (category.value && !filtered.includes(String(category.value.id))) {
+        filtered.push(String(category.value.id))
+      }
+      
       if (filtered.length > 0) {
         currentFilters.filters.categories = filtered.join(',')
+      } else if (category.value) {
+        // If no other categories, keep only current category
+        currentFilters.filters.categories = String(category.value.id)
       } else {
         delete currentFilters.filters.categories
       }
@@ -251,8 +371,22 @@ async function handleRemoveFilter(type: string, value: string) {
     }
   }
   
-  // Remove filters object if empty
-  if (Object.keys(currentFilters.filters).length === 0) {
+  // Always ensure current category ID is included
+  if (category.value?.id && currentFilters.filters) {
+    const currentCategoryId = String(category.value.id)
+    if (currentFilters.filters.categories) {
+      const categoryIds = currentFilters.filters.categories.split(',')
+      if (!categoryIds.includes(currentCategoryId)) {
+        categoryIds.push(currentCategoryId)
+        currentFilters.filters.categories = categoryIds.join(',')
+      }
+    } else {
+      currentFilters.filters.categories = currentCategoryId
+    }
+  }
+  
+  // Remove filters object if empty (but keep categories if we have a category)
+  if (Object.keys(currentFilters.filters).length === 0 && !category.value?.id) {
     currentFilters.filters = undefined
   }
   
@@ -263,8 +397,22 @@ async function handleRemoveFilter(type: string, value: string) {
 // Handle reset
 async function handleReset() {
   const catalogStore = useCatalogStore()
-  catalogStore.resetFilters()
-  await catalogStore.fetchProducts()
+  
+  // Reset filters but keep current category
+  if (category.value?.id) {
+    const filters: any = {
+      page: 1,
+      filters: {
+        categories: String(category.value.id),
+      },
+    }
+    await catalogStore.fetchProducts(filters)
+    catalogStore.filters = filters
+  } else {
+    catalogStore.resetFilters()
+    await catalogStore.fetchProducts()
+  }
+  
   navigateTo(`/catalog/${categorySlug.value}`)
 }
 
@@ -283,9 +431,21 @@ function updateUrl() {
     query.sort = catalogStore.sorting
   }
   
-  // Categories
+  // Categories - only add to URL if there are multiple categories (not just current one)
   if (catalogStore.filters.filters?.categories) {
-    query.categories = catalogStore.filters.filters.categories
+    const categoryIds = catalogStore.filters.filters.categories.split(',')
+    // Only add to URL if there are multiple categories or if it's not the current category
+    if (category.value?.id) {
+      const currentCategoryId = String(category.value.id)
+      const otherCategories = categoryIds.filter(id => id !== currentCategoryId)
+      if (otherCategories.length > 0) {
+        // Include all categories in URL (current + others)
+        query.categories = catalogStore.filters.filters.categories
+      }
+      // If only current category, don't add to URL (it's already in the path)
+    } else {
+      query.categories = catalogStore.filters.filters.categories
+    }
   }
   
   // Brands
@@ -329,22 +489,92 @@ function updateUrl() {
       <div class="h-4 bg-gray-200 dark:bg-gray-800 rounded w-1/4" />
     </div>
 
+    <!-- Error -->
+    <div v-else-if="error" class="text-center py-12">
+      <p class="text-red-600 dark:text-red-400">{{ error }}</p>
+    </div>
+
     <!-- Content -->
     <template v-else-if="category">
-      <!-- Header -->
-      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-        <div>
-          <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100">
-            {{ category.name }}
-          </h1>
-          <p v-if="category.description" class="text-gray-500 dark:text-gray-400 mt-1">
-            {{ category.description }}
-          </p>
-          <p class="text-gray-500 dark:text-gray-400 mt-1">
-            {{ pagination.total }} products
-          </p>
+      <!-- Category Header with Image -->
+      <div class="mb-8">
+        <div class="flex flex-col lg:flex-row gap-6 items-start">
+          <!-- Category Image -->
+          <div v-if="getCategoryImageUrl(category.image)" class="w-full lg:w-64 flex-shrink-0">
+            <div class="aspect-video lg:aspect-square rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-800">
+              <NuxtImg
+                :src="getCategoryImageUrl(category.image)"
+                :alt="categoryName"
+                class="w-full h-full object-cover"
+              />
+            </div>
+          </div>
+
+          <!-- Category Info -->
+          <div class="flex-1">
+            <div class="flex items-start gap-4 mb-4">
+              <!-- Category Icon -->
+              <div v-if="getCategoryIconUrl(category.icon)" class="flex-shrink-0">
+                <div class="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800">
+                  <NuxtImg
+                    :src="getCategoryIconUrl(category.icon)"
+                    :alt="categoryName"
+                    class="w-full h-full object-cover"
+                  />
+                </div>
+              </div>
+
+              <div class="flex-1">
+                <h1 class="text-3xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-3">
+                  {{ categoryName }}
+                </h1>
+                <p v-if="category.description" class="text-gray-500 dark:text-gray-400 mt-2">
+                  {{ category.description }}
+                </p>
+                <p class="text-gray-500 dark:text-gray-400 mt-2">
+                  {{ pagination.total }} products
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
-        
+      </div>
+
+      <!-- Subcategories -->
+      <div v-if="category.children && category.children.length > 0" class="mb-8">
+        <h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-4">
+          Subcategories
+        </h2>
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+          <NuxtLink
+            v-for="subcategory in category.children"
+            :key="subcategory.id"
+            :to="`/catalog/${subcategory.slug}`"
+            class="group flex flex-col items-center p-4 bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 hover:border-primary-500 dark:hover:border-primary-400 hover:shadow-md transition-all"
+          >
+            <!-- Subcategory Icon or Image -->
+            <div class="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800 mb-3 flex items-center justify-center">
+              <NuxtImg
+                v-if="getCategoryIconUrl(subcategory.icon) || getCategoryImageUrl(subcategory.image)"
+                :src="getCategoryIconUrl(subcategory.icon) || getCategoryImageUrl(subcategory.image)"
+                :alt="subcategory.title || subcategory.name || 'Subcategory'"
+                class="w-full h-full object-cover"
+              />
+              <div v-else class="w-full h-full flex items-center justify-center text-gray-400 dark:text-gray-600">
+                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                </svg>
+              </div>
+            </div>
+            <span class="text-sm font-medium text-gray-900 dark:text-gray-100 text-center group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
+              {{ subcategory.title || subcategory.name || 'Subcategory' }}
+            </span>
+          </NuxtLink>
+        </div>
+      </div>
+
+      <!-- Header with Filters -->
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div class="flex items-center gap-4">
           <!-- Mobile filter button only -->
           <div class="lg:hidden">
@@ -355,6 +585,9 @@ function updateUrl() {
               @reset="handleReset"
             />
           </div>
+        </div>
+        
+        <div class="flex items-center gap-4">
           <CatalogSortDropdown
             :model-value="sorting"
             @update:model-value="handleSortChange"

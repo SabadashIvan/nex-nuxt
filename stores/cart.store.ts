@@ -5,6 +5,7 @@
  */
 
 import { defineStore } from 'pinia'
+import { useNuxtApp } from '#app'
 import type { 
   Cart, 
   CartItem, 
@@ -345,6 +346,8 @@ export const useCartStore = defineStore('cart', {
      * Attach guest cart to authenticated user
      */
     async attachCart(): Promise<void> {
+      // Capture Nuxt context at the start to preserve it after await
+      const nuxtApp = useNuxtApp()
       const api = useApi()
       const authStore = useAuthStore()
 
@@ -352,7 +355,9 @@ export const useCartStore = defineStore('cart', {
       if (!authStore.isAuthenticated || !this.cartToken) return
 
       try {
-        const cart = await api.post<Cart>('/cart/attach', undefined, { cart: true })
+        const cart = await nuxtApp.runWithContext(async () => 
+          await api.post<Cart>('/cart/attach', undefined, { cart: true })
+        )
         this.cart = cart
       } catch (error) {
         console.error('Attach cart error:', error)

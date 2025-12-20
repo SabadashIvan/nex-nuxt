@@ -3,11 +3,11 @@
  * Handles session-based auth, CSRF tokens, SSR/CSR context, and error processing
  */
 
+import { useNuxtApp, useRouter, useRuntimeConfig, useCookie } from '#app'
 import type { ApiError } from '~/types'
 import { parseApiError, isAuthError } from '~/utils/errors'
 import { generateUUID } from '~/utils/tokens'
 import { useAuthStore } from '~/stores/auth.store'
-import { getActivePinia } from 'pinia'
 
 // API base URL from runtime config
 const API_PREFIX = '/api/v1'
@@ -73,10 +73,12 @@ function getXsrfToken(): string | null {
  * Main API composable
  */
 export function useApi() {
+  // 1. Сразу захватываем все нужные инстансы в синхронной части setup
+  const nuxtApp = useNuxtApp()
   const config = useRuntimeConfig()
+  const router = useRouter()
   
-  // Get all cookies at the top level of the composable
-  // This ensures they're called within the proper Nuxt context
+  // Инициализируем куки сразу
   const localeCookie = useCookie('locale')
   const currencyCookie = useCookie('currency')
   const cartTokenCookie = useCookie('cart_token')
@@ -89,12 +91,9 @@ export function useApi() {
    * - CSR: Use full backend URL from public config
    */
   function getBaseUrl(): string {
-    if (import.meta.server) {
-      // Server-side: direct connection to backend
-      return (config.apiBackendUrl as string) || 'http://localhost:8000'
-    }
-    // Client-side: use backend URL from public config
-    return (config.public.apiBackendUrl as string) || 'http://localhost:8000'
+    return import.meta.server
+      ? (config.apiBackendUrl as string || 'http://localhost:8000')
+      : (config.public.apiBackendUrl as string || 'http://localhost:8000')
   }
   
   /**
@@ -105,33 +104,23 @@ export function useApi() {
   async function fetchCsrfCookie(): Promise<void> {
     const baseUrl = getBaseUrl()
     
-    await $fetch(`${baseUrl}/sanctum/csrf-cookie`, {
-      credentials: 'include',
+    return nuxtApp.runWithContext(async () => {
+      await $fetch(`${baseUrl}/sanctum/csrf-cookie`, {
+        credentials: 'include',
+      })
     })
   }
 
   /**
    * Build request headers with tokens
+   * Вспомогательная функция для сборки заголовков (уже не вызывает композаблы внутри)
    */
   function buildHeaders(options: UseApiOptions = {}): Record<string, string> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
-    }
-
-    // Use locale/currency from cookies (already initialized at top level)
-    if (localeCookie.value) {
-      headers['Accept-Language'] = localeCookie.value
-    } else {
-      // Default fallback
-      headers['Accept-Language'] = 'en'
-    }
-    
-    if (currencyCookie.value) {
-      headers['Accept-Currency'] = currencyCookie.value
-    } else {
-      // Default fallback
-      headers['Accept-Currency'] = 'USD'
+      'Accept-Language': localeCookie.value || 'en',
+      'Accept-Currency': currencyCookie.value || 'USD',
     }
 
     // Add XSRF token for CSRF protection (Laravel Sanctum)
@@ -241,7 +230,7 @@ export function useApi() {
       const xsrfToken = getXsrfToken()
       if (!xsrfToken) {
         // Fetch CSRF cookie before making the request
-        await fetchCsrfCookie()
+        await nuxtApp.runWithContext(() => fetchCsrfCookie())
       }
     }
     
@@ -257,47 +246,38 @@ export function useApi() {
       authPath => endpoint.startsWith(authPath) || endpoint.includes(authPath)
     )
 
-    try {
-      const response = await $fetch<T>(url, {
-        method,
-        headers,
-        body: body ? body : undefined,
-        retry,
-        // Include credentials for session-based auth (cookies)
-        credentials: credentials ? 'include' : 'omit',
-      })
-
-      return response
-    } catch (error: unknown) {
-      const apiError = parseApiError(error)
-      
-      // Handle auth errors globally (but not during auth flows)
-      // Only handle on client side to avoid Pinia context issues during SSR
-      if (isAuthError(apiError) && !isAuthEndpoint && import.meta.client) {
-        try {
-          // Check if Pinia is available before accessing store
-          // getActivePinia() returns null if Pinia isn't initialized
-          const pinia = getActivePinia()
-          if (pinia) {
-            try {
-              const authStore = useAuthStore()
+    // 2. Используем runWithContext, чтобы Nuxt "помнил" себя внутри асинхронного вызова
+    return nuxtApp.runWithContext(async () => {
+      try {
+        return await $fetch<T>(url, {
+          method,
+          headers,
+          body: body ? body : undefined,
+          retry,
+          // Include credentials for session-based auth (cookies)
+          credentials: credentials ? 'include' : 'omit',
+        })
+      } catch (error: unknown) {
+        const apiError = parseApiError(error)
+        
+        // Обработка 401 ошибки
+        if (isAuthError(apiError) && !isAuthEndpoint && import.meta.client) {
+          try {
+            // Передаем $pinia явно, чтобы стор не пытался найти её через контекст
+            if (nuxtApp.$pinia) {
+              const authStore = useAuthStore(nuxtApp.$pinia)
               await authStore.logout()
-              
-              // Redirect to login
-              const router = useRouter()
-              router.push('/auth/login')
-            } catch (storeError) {
-              // Store access failed, skip auto-logout
-              console.warn('Could not access auth store for auto-logout:', storeError)
+              router.push('/auth/login' as any)
             }
+          } catch (storeError) {
+            // Store access failed, skip auto-logout
+            console.warn('Could not access auth store for auto-logout:', storeError)
           }
-        } catch {
-          // Pinia check failed, skip auto-logout
         }
+        
+        throw apiError
       }
-
-      throw apiError
-    }
+    })
   }
 
   /**

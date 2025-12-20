@@ -5,6 +5,7 @@
  */
 
 import { defineStore } from 'pinia'
+import { useNuxtApp } from '#app'
 import type { 
   User, 
   LoginPayload, 
@@ -86,24 +87,28 @@ export const useAuthStore = defineStore('auth', {
      * 3. Fetch user data
      */
     async login(payload: LoginPayload): Promise<boolean> {
+      // Capture Nuxt context at the start to preserve it after await
+      const nuxtApp = useNuxtApp()
       const api = useApi()
       this.loading = true
       this.clearErrors()
 
       try {
         // Step 1: Get CSRF cookie
-        await api.fetchCsrfCookie()
+        await nuxtApp.runWithContext(async () => await api.fetchCsrfCookie())
         
         // Step 2: Login (returns 204 No Content)
-        await api.post('/login', payload)
+        await nuxtApp.runWithContext(async () => await api.post('/login', payload))
         
         // Step 3: Fetch user data
-        const user = await api.get<User>('/auth/user')
+        const user = await nuxtApp.runWithContext(async () => 
+          await api.get<User>('/auth/user')
+        )
         this.user = user
 
-        // Attach guest cart to user
+        // Attach guest cart to user - capture store before await
         const cartStore = useCartStore()
-        await cartStore.attachCart()
+        await nuxtApp.runWithContext(async () => await cartStore.attachCart())
 
         return true
       } catch (error) {
@@ -123,19 +128,23 @@ export const useAuthStore = defineStore('auth', {
      * 3. Fetch user data
      */
     async register(payload: RegisterPayload): Promise<boolean> {
+      // Capture Nuxt context at the start to preserve it after await
+      const nuxtApp = useNuxtApp()
       const api = useApi()
       this.loading = true
       this.clearErrors()
 
       try {
         // Step 1: Get CSRF cookie
-        await api.fetchCsrfCookie()
+        await nuxtApp.runWithContext(async () => await api.fetchCsrfCookie())
         
         // Step 2: Register (returns 204 No Content)
-        await api.post('/register', payload)
+        await nuxtApp.runWithContext(async () => await api.post('/register', payload))
         
         // Step 3: Fetch user data
-        const user = await api.get<User>('/auth/user')
+        const user = await nuxtApp.runWithContext(async () => 
+          await api.get<User>('/auth/user')
+        )
         this.user = user
 
         return true
@@ -153,12 +162,14 @@ export const useAuthStore = defineStore('auth', {
      * Logout user (session-based)
      */
     async logout(): Promise<void> {
+      // Capture Nuxt context at the start to preserve it after await
+      const nuxtApp = useNuxtApp()
       const api = useApi()
 
       try {
         // Call logout endpoint if user is authenticated
         if (this.user) {
-          await api.post('/logout')
+          await nuxtApp.runWithContext(async () => await api.post('/logout'))
         }
       } catch (error) {
         // Ignore errors - we're logging out anyway
@@ -174,13 +185,17 @@ export const useAuthStore = defineStore('auth', {
      * Tries to get user data using existing session cookie
      */
     async fetchUser(): Promise<boolean> {
+      // Capture Nuxt context at the start to preserve it after await
+      const nuxtApp = useNuxtApp()
       const api = useApi()
       
       this.loading = true
       this.clearErrors()
 
       try {
-        const user = await api.get<User>('/auth/user')
+        const user = await nuxtApp.runWithContext(async () => 
+          await api.get<User>('/auth/user')
+        )
         this.user = user
         return true
       } catch {
@@ -196,6 +211,8 @@ export const useAuthStore = defineStore('auth', {
      * Request password reset email
      */
     async forgotPassword(payload: ForgotPasswordPayload): Promise<boolean> {
+      // Capture Nuxt context at the start to preserve it after await
+      const nuxtApp = useNuxtApp()
       const api = useApi()
       this.loading = true
       this.clearErrors()
@@ -203,9 +220,11 @@ export const useAuthStore = defineStore('auth', {
 
       try {
         // Get CSRF cookie first
-        await api.fetchCsrfCookie()
+        await nuxtApp.runWithContext(async () => await api.fetchCsrfCookie())
         
-        const response = await api.post<ForgotPasswordResponse>('/forgot-password', payload)
+        const response = await nuxtApp.runWithContext(async () => 
+          await api.post<ForgotPasswordResponse>('/forgot-password', payload)
+        )
         this.passwordResetStatus = 'sent'
         // Response contains: { status: "We have emailed your password reset link." }
         console.log('Password reset email sent:', response.status)
@@ -225,15 +244,19 @@ export const useAuthStore = defineStore('auth', {
      * Reset password with token
      */
     async resetPassword(payload: ResetPasswordPayload): Promise<boolean> {
+      // Capture Nuxt context at the start to preserve it after await
+      const nuxtApp = useNuxtApp()
       const api = useApi()
       this.loading = true
       this.clearErrors()
 
       try {
         // Get CSRF cookie first
-        await api.fetchCsrfCookie()
+        await nuxtApp.runWithContext(async () => await api.fetchCsrfCookie())
         
-        const response = await api.post<ResetPasswordResponse>('/reset-password', payload)
+        const response = await nuxtApp.runWithContext(async () => 
+          await api.post<ResetPasswordResponse>('/reset-password', payload)
+        )
         this.passwordResetStatus = 'reset'
         // Response contains: { status: "Your password has been reset." }
         console.log('Password reset successful:', response.status)
@@ -254,13 +277,17 @@ export const useAuthStore = defineStore('auth', {
      * Note: This is a GET request that redirects (302) on success
      */
     async verifyEmail(id: string, hash: string): Promise<boolean> {
+      // Capture Nuxt context at the start to preserve it after await
+      const nuxtApp = useNuxtApp()
       const api = useApi()
       this.loading = true
       this.clearErrors()
       this.emailVerificationStatus = 'idle'
 
       try {
-        await api.get(`/verify-email/${id}/${hash}`)
+        await nuxtApp.runWithContext(async () => 
+          await api.get(`/verify-email/${id}/${hash}`)
+        )
         this.emailVerificationStatus = 'verified'
         
         // Refresh user to get updated verification status
@@ -280,12 +307,16 @@ export const useAuthStore = defineStore('auth', {
      * Resend verification email
      */
     async resendVerificationEmail(): Promise<boolean> {
+      // Capture Nuxt context at the start to preserve it after await
+      const nuxtApp = useNuxtApp()
       const api = useApi()
       this.loading = true
       this.clearErrors()
 
       try {
-        await api.post('/email/verification-notification')
+        await nuxtApp.runWithContext(async () => 
+          await api.post('/email/verification-notification')
+        )
         this.emailVerificationStatus = 'sent'
         return true
       } catch (error) {

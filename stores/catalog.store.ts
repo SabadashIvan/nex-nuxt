@@ -106,9 +106,11 @@ export const useCatalogStore = defineStore('catalog', {
   actions: {
     /**
      * Fetch all categories
+     * @param providedApi - Optional API instance (to preserve context after await)
      */
-    async fetchCategories(): Promise<void> {
-      const api = useApi()
+    async fetchCategories(providedApi?: ReturnType<typeof useApi>): Promise<void> {
+      // Use provided API if available, otherwise create new one (for client-side calls)
+      const api = providedApi || useApi()
       this.loading = true
       this.error = null
 
@@ -138,9 +140,13 @@ export const useCatalogStore = defineStore('catalog', {
 
     /**
      * Fetch single category by slug
+     * @param slug - Category slug
+     * @param withProducts - Include products in response
+     * @param providedApi - Optional API instance (to preserve context after await)
      */
-    async fetchCategory(slug: string, withProducts = false): Promise<Category | null> {
-      const api = useApi()
+    async fetchCategory(slug: string, withProducts = false, providedApi?: ReturnType<typeof useApi>): Promise<Category | null> {
+      // Use provided API if available, otherwise create new one (for client-side calls)
+      const api = providedApi || useApi()
       this.loading = true
       this.error = null
 
@@ -199,9 +205,12 @@ export const useCatalogStore = defineStore('catalog', {
     /**
      * Fetch products with filters
      * Uses /api/v1/catalog/variants endpoint per YAML spec
+     * @param params - Filter parameters
+     * @param providedApi - Optional API instance (to preserve context after await)
      */
-    async fetchProducts(params?: ProductFilter): Promise<void> {
-      const api = useApi()
+    async fetchProducts(params?: ProductFilter, providedApi?: ReturnType<typeof useApi>): Promise<void> {
+      // Use provided API if available, otherwise create new one (for client-side calls)
+      const api = providedApi || useApi()
       this.loading = true
       this.error = null
 
@@ -315,9 +324,11 @@ export const useCatalogStore = defineStore('catalog', {
 
     /**
      * Fetch brands
+     * @param providedApi - Optional API instance (to preserve context after await)
      */
-    async fetchBrands(): Promise<void> {
-      const api = useApi()
+    async fetchBrands(providedApi?: ReturnType<typeof useApi>): Promise<void> {
+      // Use provided API if available, otherwise create new one (for client-side calls)
+      const api = providedApi || useApi()
 
       try {
         const brands = await api.get<Brand[]>('/catalog/brands')

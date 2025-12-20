@@ -91,6 +91,10 @@ function handleKeydown(event: KeyboardEvent) {
   }
 }
 
+// Capture Nuxt context and API at component setup level
+const nuxtApp = useNuxtApp()
+const api = useApi()
+
 // Perform search
 async function performSearch(query: string) {
   if (!query || query.length < 2) {
@@ -104,14 +108,15 @@ async function performSearch(query: string) {
   selectedIndex.value = -1
 
   try {
-    const api = useApi()
-    const response = await api.get<SearchSuggestResponse>(
-      '/catalog/suggest',
-      {
-        q: query,
-        variants_limit: props.variantsLimit,
-        suggestions_limit: props.suggestionsLimit,
-      }
+    const response = await nuxtApp.runWithContext(async () =>
+      await api.get<SearchSuggestResponse>(
+        '/catalog/suggest',
+        {
+          q: query,
+          variants_limit: props.variantsLimit,
+          suggestions_limit: props.suggestionsLimit,
+        }
+      )
     )
 
     searchResults.value = response

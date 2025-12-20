@@ -7,6 +7,8 @@ import { useSystemStore } from '~/stores/system.store'
 import { useAuthStore } from '~/stores/auth.store'
 
 export default defineNuxtPlugin(async () => {
+  // Capture Nuxt context to preserve it after await
+  const nuxtApp = useNuxtApp()
   const systemStore = useSystemStore()
   const authStore = useAuthStore()
 
@@ -22,7 +24,7 @@ export default defineNuxtPlugin(async () => {
 
   // Try to restore auth from session cookie (Laravel Sanctum)
   try {
-    await authStore.initialize()
+    await nuxtApp.runWithContext(async () => await authStore.initialize())
   } catch (error) {
     console.error('Failed to initialize auth:', error)
   }

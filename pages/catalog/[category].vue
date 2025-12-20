@@ -5,8 +5,11 @@
 import { useCatalogStore } from '~/stores/catalog.store'
 import type { Category, ProductFilter } from '~/types'
 
-// Call useRoute() at top level of setup - this is safe in Nuxt 3
+// Call composables at top level of setup - this is safe in Nuxt 3
 const route = useRoute()
+const catalogStore = useCatalogStore()
+// Create API instance at top level where context is guaranteed
+const api = useApi()
 
 // Helpers for reactive route access
 const categorySlug = computed(() => (route.params.category as string) || '')
@@ -17,7 +20,7 @@ const { data: category, pending, error, refresh } = await useAsyncData(
   asyncKey.value,
   async () => {
     const slug = categorySlug.value
-    const query = routeQuery.value
+    const query = route.query
     const filters = {
       q: query.q as string | undefined,
       sort: query.sort as string | undefined,
@@ -29,8 +32,8 @@ const { data: category, pending, error, refresh } = await useAsyncData(
       attributes: query.attributes ? (query.attributes as string).split(',') : undefined,
     }
     console.log('Fetching category data for slug:', slug)
-    const catalogStore = useCatalogStore()
-    const cat = await catalogStore.fetchCategory(slug)
+    // Use store instance created at top level, pass API instance to preserve context
+    const cat = await catalogStore.fetchCategory(slug, false, api)
     console.log('Fetched category:', cat)
     if (cat && cat.id) {
       // Build filters object from URL params
@@ -72,7 +75,8 @@ const { data: category, pending, error, refresh } = await useAsyncData(
       }
       
       console.log('Fetching products with filters:', filterParams)
-      await catalogStore.fetchProducts(filterParams)
+      // Pass API instance to preserve context after await
+      await catalogStore.fetchProducts(filterParams, api)
       console.log('Products fetched:', catalogStore.products.length)
       console.log('Products data:', catalogStore.products)
       console.log('Pagination:', catalogStore.pagination)
@@ -111,46 +115,16 @@ watch([pending, category, error], ([isPending, cat, err]) => {
 })
 
 
-// Computed values - access store inside computed
+// Computed values - access store instance created at top level
 const products = computed(() => {
-  try {
-    const store = useCatalogStore()
-    const productsList = store.products
-    console.log('Products computed - count:', productsList.length, 'data:', productsList)
-    return productsList
-  } catch (error) {
-    console.error('Error getting products from store:', error)
-    return []
-  }
+  const productsList = catalogStore.products
+  console.log('Products computed - count:', productsList.length, 'data:', productsList)
+  return productsList
 })
-const pagination = computed(() => {
-  try {
-    return useCatalogStore().pagination
-  } catch {
-    return { page: 1, perPage: 20, total: 0, lastPage: 1 }
-  }
-})
-const sorting = computed(() => {
-  try {
-    return useCatalogStore().sorting
-  } catch {
-    return 'newest'
-  }
-})
-const availableFilters = computed(() => {
-  try {
-    return useCatalogStore().availableFilters
-  } catch {
-    return {}
-  }
-})
-const activeFilters = computed(() => {
-  try {
-    return useCatalogStore().filters
-  } catch {
-    return {}
-  }
-})
+const pagination = computed(() => catalogStore.pagination)
+const sorting = computed(() => catalogStore.sorting)
+const availableFilters = computed(() => catalogStore.availableFilters)
+const activeFilters = computed(() => catalogStore.filters)
 
 // Breadcrumbs
 const breadcrumbs = computed(() => {
@@ -190,7 +164,6 @@ const categoryName = computed(() => {
 
 // Handle filter changes
 async function handleFilterChange(filters: ProductFilter) {
-  const catalogStore = useCatalogStore()
   
   // Ensure current category ID is always included
   const updatedFilters = { ...filters }
@@ -221,14 +194,12 @@ async function handleFilterChange(filters: ProductFilter) {
 
 // Handle sort change
 async function handleSortChange(sort: string) {
-  const catalogStore = useCatalogStore()
   await catalogStore.applySorting(sort)
   updateUrl()
 }
 
 // Handle page change
 async function handlePageChange(page: number) {
-  const catalogStore = useCatalogStore()
   // Update URL first, then fetch products
   const query: Record<string, string> = {}
   
@@ -279,7 +250,6 @@ async function handlePageChange(page: number) {
 
 // Handle remove single filter
 async function handleRemoveFilter(type: string, value: string) {
-  const catalogStore = useCatalogStore()
   const currentFilters = { ...catalogStore.filters }
   
   if (!currentFilters.filters) {
@@ -374,7 +344,6 @@ async function handleRemoveFilter(type: string, value: string) {
 
 // Handle reset
 async function handleReset() {
-  const catalogStore = useCatalogStore()
   
   // Reset filters but keep current category
   if (category.value?.id) {
@@ -396,7 +365,6 @@ async function handleReset() {
 
 // Update URL with current filters
 function updateUrl() {
-  const catalogStore = useCatalogStore()
   const query: Record<string, string> = {}
   
   // Search

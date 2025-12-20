@@ -31,11 +31,13 @@ export default defineNuxtRouteMiddleware(async (to) => {
     return
   }
 
+  // Capture Nuxt context to preserve it after await
+  const nuxtApp = useNuxtApp()
   const authStore = useAuthStore()
   
   // Initialize auth state if not done yet (check session)
   if (!authStore.initialized) {
-    await authStore.initialize()
+    await nuxtApp.runWithContext(async () => await authStore.initialize())
   }
 
   const isAuthenticated = authStore.isAuthenticated

@@ -4,6 +4,7 @@
  */
 
 import { defineStore } from 'pinia'
+import { useNuxtApp } from '#app'
 import type { SeoMeta, SeoState } from '~/types'
 
 export const useSeoStore = defineStore('seo', {
@@ -49,12 +50,16 @@ export const useSeoStore = defineStore('seo', {
      * @param fullUrl - Full frontend URL (e.g., https://example.com/catalog)
      */
     async fetch(fullUrl: string): Promise<void> {
+      // Capture Nuxt context at the start to preserve it after await
+      const nuxtApp = useNuxtApp()
       const api = useApi()
       this.loading = true
       this.error = null
 
       try {
-        const response = await api.get<{ data: SeoMeta }>('/site', { url: fullUrl })
+        const response = await nuxtApp.runWithContext(async () => 
+          await api.get<{ data: SeoMeta }>('/site', { url: fullUrl })
+        )
         // API returns { data: { ... } } structure
         this.current = response.data
       } catch (error) {
@@ -77,6 +82,8 @@ export const useSeoStore = defineStore('seo', {
       if (!this.current) return
 
       const meta = this.current
+      // Capture config at the start to preserve context
+      const nuxtApp = useNuxtApp()
       const config = useRuntimeConfig()
 
       // Build canonical URL - use provided canonical or build from current URL

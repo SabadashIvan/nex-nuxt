@@ -73,7 +73,7 @@ export const useSeoStore = defineStore('seo', {
     /**
      * Apply current SEO metadata to document head
      */
-    apply(): void {
+    apply(fullPath?: string): void {
       if (!this.current) return
 
       const meta = this.current
@@ -84,10 +84,10 @@ export const useSeoStore = defineStore('seo', {
       if (!canonicalUrl && typeof window !== 'undefined') {
         canonicalUrl = window.location.href
       } else if (!canonicalUrl) {
-        // SSR: build from siteUrl and path
+        // SSR: build from siteUrl and provided path
         const siteUrl = config.public.siteUrl as string || 'http://localhost:3000'
-        const route = useRoute()
-        canonicalUrl = `${siteUrl}${route.fullPath}`
+        const safePath = fullPath || '/'
+        canonicalUrl = `${siteUrl}${safePath}`
       }
 
       useHead({
@@ -117,4 +117,3 @@ export const useSeoStore = defineStore('seo', {
     },
   },
 })
-

@@ -50,7 +50,7 @@ export default defineNuxtRouteMiddleware(async (to) => {
     const fullUrl = `${siteUrl}${to.fullPath}`
     
     await seoStore.fetch(fullUrl)
-    seoStore.apply()
+    seoStore.apply(to.fullPath)
   } catch (error) {
     console.error('Failed to fetch SEO metadata:', error)
     // Apply fallback SEO
@@ -62,4 +62,3 @@ export default defineNuxtRouteMiddleware(async (to) => {
     })
   }
 })
-

@@ -22,14 +22,22 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 // Parse price from ProductPrice object or number
-const parsePriceString = (priceStr: string): number => {
+const parsePriceString = (priceStr?: string | null): number => {
+  if (!priceStr) return 0
   return parseFloat(priceStr.replace(/[^0-9.]/g, ''))
 }
 
+const priceObject = computed(() => {
+  if (typeof props.price === 'object' && props.price !== null) {
+    return props.price
+  }
+  return null
+})
+
 // Access store inside computed
 const displayCurrency = computed(() => {
-  if (typeof props.price === 'object' && props.price.currency) {
-    return props.price.currency
+  if (priceObject.value?.currency) {
+    return priceObject.value.currency
   }
   try {
     return props.currency || useSystemStore().currentCurrency
@@ -39,23 +47,23 @@ const displayCurrency = computed(() => {
 })
 
 const listPrice = computed(() => {
-  if (typeof props.price === 'object') {
-    return parsePriceString(props.price.list_minor)
+  if (priceObject.value) {
+    return parsePriceString(priceObject.value.list_minor)
   }
   return props.price
 })
 
 const effectivePrice = computed(() => {
-  if (typeof props.price === 'object') {
-    return parsePriceString(props.price.effective_minor)
+  if (priceObject.value) {
+    return parsePriceString(priceObject.value.effective_minor)
   }
   return props.effectivePrice ?? props.price
 })
 
 const isDiscounted = computed(() => {
-  if (typeof props.price === 'object') {
-    const list = parsePriceString(props.price.list_minor)
-    const effective = parsePriceString(props.price.effective_minor)
+  if (priceObject.value) {
+    const list = parsePriceString(priceObject.value.list_minor)
+    const effective = parsePriceString(priceObject.value.effective_minor)
     return effective < list
   }
   return props.effectivePrice !== undefined && hasDiscount(listPrice.value, effectivePrice.value)
@@ -63,26 +71,26 @@ const isDiscounted = computed(() => {
 
 const discountPercent = computed(() => {
   if (!isDiscounted.value) return ''
-  if (typeof props.price === 'object') {
-    const list = parsePriceString(props.price.list_minor)
-    const effective = parsePriceString(props.price.effective_minor)
+  if (priceObject.value) {
+    const list = parsePriceString(priceObject.value.list_minor)
+    const effective = parsePriceString(priceObject.value.effective_minor)
     return formatDiscountPercent(list, effective)
   }
   return formatDiscountPercent(listPrice.value, effectivePrice.value)
 })
 
 const formattedPrice = computed(() => {
-  if (typeof props.price === 'object') {
+  if (priceObject.value) {
     // Use the formatted string from API
-    return props.price.effective_minor
+    return priceObject.value.effective_minor
   }
   return formatPrice(effectivePrice.value, { currency: displayCurrency.value })
 })
 
 const formattedOriginalPrice = computed(() => {
-  if (typeof props.price === 'object') {
+  if (priceObject.value) {
     // Use the formatted string from API
-    return props.price.list_minor
+    return priceObject.value.list_minor
   }
   return formatPrice(listPrice.value, { currency: displayCurrency.value })
 })
@@ -127,4 +135,3 @@ const sizeClasses = computed(() => {
     </span>
   </div>
 </template>
-

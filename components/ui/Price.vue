@@ -7,7 +7,7 @@ import { formatPrice, hasDiscount, formatDiscountPercent } from '~/utils/price'
 import { useSystemStore } from '~/stores/system.store'
 
 interface Props {
-  price: ProductPrice | number
+  price?: ProductPrice | number
   effectivePrice?: number
   currency?: string
   showDiscount?: boolean
@@ -15,6 +15,7 @@ interface Props {
 }
 
 const props = withDefaults(defineProps<Props>(), {
+  price: 0,
   effectivePrice: undefined,
   currency: undefined,
   showDiscount: true,
@@ -50,14 +51,19 @@ const listPrice = computed(() => {
   if (priceObject.value) {
     return parsePriceString(priceObject.value.list_minor)
   }
-  return props.price
+  // When priceObject is null, props.price must be a number
+  return typeof props.price === 'number' ? props.price : 0
 })
 
 const effectivePrice = computed(() => {
   if (priceObject.value) {
     return parsePriceString(priceObject.value.effective_minor)
   }
-  return props.effectivePrice ?? props.price
+  // When priceObject is null, ensure we return a number
+  if (props.effectivePrice !== undefined) {
+    return props.effectivePrice
+  }
+  return typeof props.price === 'number' ? props.price : 0
 })
 
 const isDiscounted = computed(() => {
@@ -108,30 +114,32 @@ const sizeClasses = computed(() => {
 
 <template>
   <div class="inline-flex items-center gap-2 flex-wrap">
-    <!-- Current price -->
-    <span 
-      :class="[
-        sizeClasses,
-        isDiscounted ? 'text-red-600 dark:text-red-400 font-semibold' : 'text-gray-900 dark:text-gray-100'
-      ]"
-    >
-      {{ formattedPrice }}
-    </span>
+    <template v-if="props.price !== undefined && props.price !== null">
+      <!-- Current price -->
+      <span 
+        :class="[
+          sizeClasses,
+          isDiscounted ? 'text-red-600 dark:text-red-400 font-semibold' : 'text-gray-900 dark:text-gray-100'
+        ]"
+      >
+        {{ formattedPrice }}
+      </span>
 
-    <!-- Original price (if discounted) -->
-    <span 
-      v-if="isDiscounted" 
-      class="text-gray-400 line-through text-sm"
-    >
-      {{ formattedOriginalPrice }}
-    </span>
+      <!-- Original price (if discounted) -->
+      <span 
+        v-if="isDiscounted" 
+        class="text-gray-400 line-through text-sm"
+      >
+        {{ formattedOriginalPrice }}
+      </span>
 
-    <!-- Discount badge -->
-    <span 
-      v-if="isDiscounted && showDiscount && discountPercent"
-      class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
-    >
-      {{ discountPercent }}
-    </span>
+      <!-- Discount badge -->
+      <span 
+        v-if="isDiscounted && showDiscount && discountPercent"
+        class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
+      >
+        {{ discountPercent }}
+      </span>
+    </template>
   </div>
 </template>

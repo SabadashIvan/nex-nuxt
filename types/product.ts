@@ -3,6 +3,8 @@
  */
 
 import type { ImageValue } from './common'
+import type { ProductPrice, Category } from './catalog'
+
 export interface ProductImage {
   id: number
   url: string
@@ -12,23 +14,42 @@ export interface ProductImage {
 }
 
 export interface AttributeValue {
+  attribute: {
+    title: string
+    code: string
+  }
   code: string
-  name: string
-  value: string
-  display_value?: string
+  label: string
+}
+
+export interface ProductBrand {
+  id: number
+  slug: string
+  title: string
+}
+
+export interface VariantOptionAxis {
+  attribute_id: number
+  code: string
+  title: string
+}
+
+export interface VariantOptionValue {
+  value_id: number
+  label: string
+  slug: string
+  is_in_stock: boolean
+}
+
+export interface VariantOptions {
+  axes: VariantOptionAxis[]
+  options: Record<string, VariantOptionValue[]>
 }
 
 export interface VariantOption {
   code: string
   name: string
   values: VariantOptionValue[]
-}
-
-export interface VariantOptionValue {
-  value: string
-  label: string
-  is_available: boolean
-  variant_id?: number
 }
 
 export interface ProductSpecification {
@@ -41,27 +62,46 @@ export interface SpecificationItem {
   value: string
 }
 
+export interface ProductRating {
+  value: number
+  count: number
+}
+
+export interface ProductData {
+  id: number
+  description?: string
+  brand?: ProductBrand
+  categories?: Category[]
+  available_options?: unknown[]
+}
+
 export interface ProductVariant {
   id: number
   product_id: number
-  name: string
+  title: string
   slug: string
   sku: string
-  price: number
-  effective_price: number
-  currency: string
-  in_stock: boolean
-  quantity?: number
-  description?: string
-  short_description?: string
+  is_favorite: boolean
+  price: ProductPrice
+  is_in_stock: boolean
   images: ProductImage[]
-  attributes: AttributeValue[]
+  attribute_values: AttributeValue[]
+  rating?: ProductRating
+  product?: ProductData
+  variant_options?: VariantOptions
+  // Legacy fields for backward compatibility
+  name?: string
+  effective_price?: number
+  currency?: string
+  in_stock?: boolean
+  attributes?: AttributeValue[]
   specifications?: ProductSpecification[]
   options?: VariantOption[]
   meta_title?: string
   meta_description?: string
-  rating?: number
-  reviews_count?: number
+  description?: string
+  short_description?: string
+  quantity?: number
   related_products?: RelatedProduct[]
 }
 
@@ -69,8 +109,8 @@ export interface RelatedProduct {
   id: number
   name: string
   slug: string
-  price: number
-  effective_price: number
+  price: ProductPrice | number
+  effective_price?: number
   image?: ImageValue
 }
 

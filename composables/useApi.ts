@@ -3,7 +3,8 @@
  * Handles session-based auth, CSRF tokens, SSR/CSR context, and error processing
  */
 
-import { useNuxtApp, useRouter, useRuntimeConfig, useCookie } from '#app'
+import { useNuxtApp, useRouter, useRuntimeConfig, useCookie, useRequestEvent } from '#app'
+import { getCookie } from 'h3'
 import type { ApiError } from '~/types'
 import { parseApiError, isAuthError } from '~/utils/errors'
 import { generateUUID } from '~/utils/tokens'
@@ -78,12 +79,45 @@ export function useApi() {
   const config = useRuntimeConfig()
   const router = useRouter()
   
-  // Инициализируем куки сразу
-  const localeCookie = useCookie('locale')
-  const currencyCookie = useCookie('currency')
-  const cartTokenCookie = useCookie('cart_token')
-  const guestTokenCookie = useCookie('guest_id')
-  const comparisonTokenCookie = useCookie('comparison_token')
+  // Lazy cookie access - only access cookies when needed and only on client
+  // This prevents cookie writes during SSR/SWR cache handling
+  function getCookieValue(key: string): string | null {
+    if (import.meta.server) {
+      // During SSR, use getCookie() which only reads, doesn't write
+      try {
+        const event = useRequestEvent()
+        if (event) {
+          return getCookie(event, key) || null
+        }
+      } catch {
+        // If we can't get the event (e.g., during SWR cache handling),
+        // return null instead of using useCookie() which would trigger writes
+        return null
+      }
+      return null
+    }
+    // On client, use useCookie() for reactivity
+    try {
+      const cookie = useCookie(key)
+      return cookie.value || null
+    } catch {
+      return null
+    }
+  }
+  
+  function setCookieValue(key: string, value: string): void {
+    // Only set cookies on client side to avoid header issues during SSR/SWR
+    if (import.meta.client) {
+      try {
+        const cookie = useCookie(key)
+        cookie.value = value
+      } catch (error) {
+        if (import.meta.dev) {
+          console.warn(`Failed to set cookie ${key}:`, error)
+        }
+      }
+    }
+  }
   
   /**
    * Get the base URL for API requests
@@ -113,14 +147,14 @@ export function useApi() {
 
   /**
    * Build request headers with tokens
-   * Вспомогательная функция для сборки заголовков (уже не вызывает композаблы внутри)
+   * Uses lazy cookie access to avoid writes during SSR/SWR cache handling
    */
   function buildHeaders(options: UseApiOptions = {}): Record<string, string> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
-      'Accept-Language': localeCookie.value || 'en',
-      'Accept-Currency': currencyCookie.value || 'USD',
+      'Accept-Language': getCookieValue('locale') || 'en',
+      'Accept-Currency': getCookieValue('currency') || 'USD',
     }
 
     // Add XSRF token for CSRF protection (Laravel Sanctum)
@@ -129,35 +163,35 @@ export function useApi() {
       headers['X-XSRF-TOKEN'] = xsrfToken
     }
 
-    // Add cart token - use cookie directly to avoid context issues
+    // Add cart token - use lazy cookie access to avoid context issues
     if (options.cart) {
-      let cartToken = cartTokenCookie.value
+      let cartToken = getCookieValue('cart_token')
       if (!cartToken) {
         // Generate new token if doesn't exist
         cartToken = generateUUID()
-        cartTokenCookie.value = cartToken
+        setCookieValue('cart_token', cartToken)
       }
       headers['X-Cart-Token'] = cartToken
     }
 
-    // Add guest token - use cookie directly to avoid context issues
+    // Add guest token - use lazy cookie access to avoid context issues
     if (options.guest) {
-      let guestToken = guestTokenCookie.value
+      let guestToken = getCookieValue('guest_id')
       if (!guestToken) {
         // Generate new token if doesn't exist
         guestToken = generateUUID()
-        guestTokenCookie.value = guestToken
+        setCookieValue('guest_id', guestToken)
       }
       headers['X-Guest-Id'] = guestToken
     }
 
-    // Add comparison token - use cookie directly to avoid context issues
+    // Add comparison token - use lazy cookie access to avoid context issues
     if (options.comparison) {
-      let comparisonToken = comparisonTokenCookie.value
+      let comparisonToken = getCookieValue('comparison_token')
       if (!comparisonToken) {
         // Generate new token if doesn't exist
         comparisonToken = generateUUID()
-        comparisonTokenCookie.value = comparisonToken
+        setCookieValue('comparison_token', comparisonToken)
       }
       headers['X-Comparison-Token'] = comparisonToken
     }

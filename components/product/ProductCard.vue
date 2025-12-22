@@ -23,10 +23,14 @@ const productImage = computed(() => {
 
 const hasDiscount = computed(() => {
   if (!props.product.price) return false
-  // Parse price strings: "$587.53" -> 587.53
-  const listPrice = parseFloat(props.product.price.list_minor.replace(/[^0-9.]/g, ''))
-  const effectivePrice = parseFloat(props.product.price.effective_minor.replace(/[^0-9.]/g, ''))
-  return !isNaN(listPrice) && !isNaN(effectivePrice) && effectivePrice < listPrice
+  try {
+    // Parse price strings: "$587.53" -> 587.53
+    const listPrice = parseFloat(props.product.price.list_minor?.replace(/[^0-9.]/g, '') || '0')
+    const effectivePrice = parseFloat(props.product.price.effective_minor?.replace(/[^0-9.]/g, '') || '0')
+    return !isNaN(listPrice) && !isNaN(effectivePrice) && listPrice > 0 && effectivePrice < listPrice
+  } catch {
+    return false
+  }
 })
 
 // Access stores inside computed
@@ -51,35 +55,71 @@ async function toggleFavorite() {
   await favoritesStore.toggleFavorite(props.product.id)
   isTogglingFavorite.value = false
 }
+
+// Prefetch product data on hover for instant navigation (SWR-like behavior)
+let prefetchPromise: Promise<any> | null = null
+
+function prefetchProduct() {
+  if (import.meta.client && !prefetchPromise) {
+    // Prefetch product data only once per card
+    // Use different key to avoid conflicts with page's useAsyncData
+    prefetchPromise = useAsyncData(
+      `prefetch-product-${props.product.slug}`, 
+      () => {
+        const api = useApi()
+        return api.get(`/catalog/variants/${props.product.slug}`)
+      }, 
+      { 
+        server: false, // Only prefetch on client
+        lazy: true, // Don't block navigation
+      }
+    ).catch(() => {
+      // Ignore prefetch errors - reset promise so we can try again
+      prefetchPromise = null
+    })
+  }
+}
 </script>
 
 <template>
   <div class="group bg-white dark:bg-gray-900 rounded-xl shadow-sm overflow-hidden transition-shadow hover:shadow-lg">
     <!-- Image -->
-    <NuxtLink :to="`/product/${product.slug}`" class="block relative aspect-square overflow-hidden">
-      <NuxtImg
-        v-if="productImage"
-        :src="productImage"
-        :alt="product.title"
-        class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-        loading="lazy"
-      />
-      <div 
-        v-else 
-        class="w-full h-full bg-gray-200 dark:bg-gray-800 flex items-center justify-center"
-      >
-        <span class="text-gray-400 dark:text-gray-500">No image</span>
+    <NuxtLink 
+      :to="`/product/${product.slug}`" 
+      class="block relative aspect-square overflow-hidden"
+      @mouseenter="prefetchProduct"
+    >
+      <!-- Image container - always render to ensure consistent DOM structure -->
+      <div class="w-full h-full relative">
+        <NuxtImg
+          v-if="productImage"
+          :src="productImage"
+          :alt="product.title"
+          class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+          loading="lazy"
+          fetchpriority="low"
+        />
+        <div 
+          v-else 
+          class="w-full h-full bg-gray-200 dark:bg-gray-800 flex items-center justify-center"
+        >
+          <span class="text-gray-400 dark:text-gray-500">No image</span>
+        </div>
       </div>
 
-      <!-- Discount badge -->
+      <!-- Discount badge - always render container, conditionally show content -->
       <div 
-        v-if="hasDiscount"
-        class="absolute top-3 left-3 bg-red-500 text-white text-xs font-semibold px-2 py-1 rounded"
+        class="absolute top-3 left-3"
       >
-        Sale
+        <div 
+          v-if="hasDiscount"
+          class="bg-red-500 text-white text-xs font-semibold px-2 py-1 rounded"
+        >
+          Sale
+        </div>
       </div>
 
-      <!-- Quick actions -->
+      <!-- Quick actions - always render to ensure consistent DOM structure -->
       <div class="absolute top-3 right-3 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
         <button
           class="p-2 bg-white dark:bg-gray-800 rounded-full shadow-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
@@ -97,14 +137,18 @@ async function toggleFavorite() {
         </NuxtLink>
       </div>
 
-      <!-- Out of stock overlay -->
+      <!-- Out of stock overlay - always render container, conditionally show content -->
       <div 
-        v-if="!product.is_in_stock"
-        class="absolute inset-0 bg-black/50 flex items-center justify-center"
+        class="absolute inset-0 pointer-events-none"
       >
-        <span class="bg-white dark:bg-gray-900 px-4 py-2 rounded-lg font-medium text-gray-900 dark:text-gray-100">
-          Out of Stock
-        </span>
+        <div 
+          v-if="!product.is_in_stock"
+          class="w-full h-full bg-black/50 flex items-center justify-center pointer-events-auto"
+        >
+          <span class="bg-white dark:bg-gray-900 px-4 py-2 rounded-lg font-medium text-gray-900 dark:text-gray-100">
+            Out of Stock
+          </span>
+        </div>
       </div>
     </NuxtLink>
 

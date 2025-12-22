@@ -16,8 +16,20 @@ const categorySlug = computed(() => (route.params.category as string) || '')
 
 const asyncKey = computed(() => `category-${categorySlug.value}`)
 
-const { data: category, pending, error, refresh } = await useAsyncData(
-  asyncKey.value,
+// Build cache key for category page with filters
+const buildCategoryCacheKey = (slug: string, query: Record<string, any>) => {
+  const sortedQuery = Object.keys(query)
+    .sort()
+    .reduce((acc, key) => {
+      acc[key] = query[key]
+      return acc
+    }, {} as Record<string, any>)
+  return `category-${slug}-${JSON.stringify(sortedQuery)}`
+}
+
+// Fetch category and products with lazy loading + SWR caching
+const { data: category, pending, error, refresh } = await useLazyAsyncData(
+  () => buildCategoryCacheKey(categorySlug.value, route.query),
   async () => {
     const slug = categorySlug.value
     const query = route.query
@@ -101,6 +113,19 @@ const { data: category, pending, error, refresh } = await useAsyncData(
     server: true,
     default: () => null,
     watch: [() => route.fullPath],
+    // SWR-like caching: return cached category if available (category doesn't change with pagination)
+    getCachedData: (key) => {
+      try {
+        // Category data doesn't change with pagination, so we can cache it
+        // But products will be refetched because the key includes query params
+        if (catalogStore.currentCategory && catalogStore.currentCategory.slug === categorySlug.value) {
+          return catalogStore.currentCategory
+        }
+      } catch {
+        // Store not available
+      }
+      return undefined
+    },
   }
 )
 
@@ -241,11 +266,17 @@ async function handlePageChange(page: number) {
     query.page = page.toString()
   }
   
-  // Navigate to update URL - this will trigger useAsyncData to refetch
+  // Navigate to update URL - this will trigger useLazyAsyncData to refetch
+  // The watch on route.fullPath will detect the change and reload data
   await navigateTo({ path: `/catalog/${categorySlug.value}`, query }, { replace: true })
   
+  // Force refresh to ensure data is reloaded
+  await refresh()
+  
   // Scroll to top
-  window.scrollTo({ top: 0, behavior: 'smooth' })
+  if (import.meta.client) {
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
 }
 
 // Handle remove single filter

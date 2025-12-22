@@ -33,26 +33,75 @@ export function generateUUID(): string {
 
 /**
  * Get token from cookie (SSR-safe)
+ * During SSR, uses getCookie() to avoid triggering cookie writes
+ * During client, uses useCookie() for reactivity
  */
 export function getTokenFromCookie(key: string): string | null {
-  const cookie = useCookie(key)
-  return cookie.value || null
+  if (import.meta.server) {
+    // During SSR, use getCookie() which only reads, doesn't write
+    // This prevents cookie write attempts during SWR cache handling
+    try {
+      const event = useRequestEvent()
+      if (event) {
+        const value = getCookie(event, key)
+        return value || null
+      }
+    } catch {
+      // If we can't get the event (e.g., during SWR cache handling),
+      // return null instead of using useCookie() which would trigger writes
+      return null
+    }
+  }
+  // On client, use useCookie() for reactivity
+  try {
+    const cookie = useCookie(key)
+    return cookie.value || null
+  } catch {
+    // Fallback if useCookie() fails
+    return null
+  }
 }
 
 /**
  * Set token in cookie (SSR-safe)
+ * Only sets cookies on client to avoid issues during SWR cache handling
  */
 export function setTokenInCookie(key: string, value: string): void {
-  const cookie = useCookie(key, COOKIE_OPTIONS)
-  cookie.value = value
+  // Only set cookies on client side to avoid header issues during SSR/SWR
+  if (import.meta.client) {
+    try {
+      const cookie = useCookie(key, COOKIE_OPTIONS)
+      cookie.value = value
+    } catch (error) {
+      // Silently fail if cookie can't be set
+      if (import.meta.dev) {
+        console.warn(`Failed to set cookie ${key}:`, error)
+      }
+    }
+  }
+  // During SSR, we don't set cookies to avoid "headers already sent" errors
+  // Cookies will be set on the client side
 }
 
 /**
- * Remove token from cookie
+ * Remove token from cookie (SSR-safe)
+ * Only removes cookies on client to avoid issues during SWR cache handling
  */
 export function removeTokenFromCookie(key: string): void {
-  const cookie = useCookie(key)
-  cookie.value = null
+  // Only remove cookies on client side to avoid header issues during SSR/SWR
+  if (import.meta.client) {
+    try {
+      const cookie = useCookie(key)
+      cookie.value = null
+    } catch (error) {
+      // Silently fail if cookie can't be removed
+      if (import.meta.dev) {
+        console.warn(`Failed to remove cookie ${key}:`, error)
+      }
+    }
+  }
+  // During SSR, we don't remove cookies to avoid "headers already sent" errors
+  // Cookies will be removed on the client side
 }
 
 /**

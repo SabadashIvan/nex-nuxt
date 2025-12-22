@@ -10,9 +10,22 @@ const route = useRoute()
 // Create a computed for route query to use in watch
 const routeQuery = computed(() => route.query)
 
-// Fetch products with SSR - access store inside callback
-const { pending, refresh } = await useAsyncData(
-  'catalog-products',
+// Build cache key from route query for SWR-like caching
+const buildCacheKey = (query: Record<string, any>) => {
+  const sortedQuery = Object.keys(query)
+    .sort()
+    .reduce((acc, key) => {
+      acc[key] = query[key]
+      return acc
+    }, {} as Record<string, any>)
+  return `catalog-products-${JSON.stringify(sortedQuery)}`
+}
+
+// Fetch products with lazy loading + SWR caching
+// useLazyAsyncData allows instant navigation with skeleton loading
+// Key includes all query params (including page) so cache will be correct per page
+const { data: productsData, pending, refresh, error } = await useLazyAsyncData(
+  () => buildCacheKey(route.query),
   async () => {
     const catalogStore = useCatalogStore()
     
@@ -33,38 +46,52 @@ const { pending, refresh } = await useAsyncData(
     // On /catalog page, we don't add categories filter unless explicitly in URL
     const filters: any = {
       page: initialFilters.page,
+      // Explicitly set filters to empty object to prevent old category filters from being merged
+      // This ensures that when navigating from /catalog/[category] to /catalog/, 
+      // old category filters are not preserved
+      filters: {},
     }
     
-    // Only add filters object if there are any filters in URL
-    if (initialFilters.q || 
-        initialFilters.categories || 
-        initialFilters.brands || 
-        initialFilters.price_min !== undefined || 
-        initialFilters.price_max !== undefined ||
-        initialFilters.attributes) {
-      filters.filters = {}
-      
-      if (initialFilters.q) {
-        filters.filters.q = initialFilters.q
-      }
-      // Only add categories if explicitly in URL - don't add by default on /catalog
-      if (initialFilters.categories) {
-        filters.filters.categories = initialFilters.categories
-      }
-      if (initialFilters.brands) {
-        filters.filters.brands = initialFilters.brands
-      }
-      if (initialFilters.price_min !== undefined) {
-        filters.filters.price_min = initialFilters.price_min
-      }
-      if (initialFilters.price_max !== undefined) {
-        filters.filters.price_max = initialFilters.price_max
-      }
-      if (initialFilters.attributes && initialFilters.attributes.length > 0) {
-        filters.filters.attributes = initialFilters.attributes
-      }
+    // Only add filter values if they exist in URL
+    if (initialFilters.q) {
+      filters.filters.q = initialFilters.q
     }
-    // If no filters in URL, ensure filters object is not created (to avoid sending empty filters)
+    // Only add categories if explicitly in URL - don't add by default on /catalog
+    if (initialFilters.categories) {
+      filters.filters.categories = initialFilters.categories
+    }
+    if (initialFilters.brands) {
+      filters.filters.brands = initialFilters.brands
+    }
+    if (initialFilters.price_min !== undefined) {
+      filters.filters.price_min = initialFilters.price_min
+    }
+    if (initialFilters.price_max !== undefined) {
+      filters.filters.price_max = initialFilters.price_max
+    }
+    if (initialFilters.attributes && initialFilters.attributes.length > 0) {
+      filters.filters.attributes = initialFilters.attributes
+    }
+    
+    // If no filters in URL, remove empty filters object to avoid sending it to API
+    if (Object.keys(filters.filters).length === 0) {
+      filters.filters = undefined
+    }
+    
+    // Clear category filters from store if not in URL (to avoid showing category products on main catalog page)
+    // This prevents old category filters from being merged in fetchProducts
+    if (!initialFilters.categories && catalogStore.filters.filters?.categories) {
+      // Remove categories from existing filters in store before fetching
+      const cleanedFilters = { ...catalogStore.filters }
+      if (cleanedFilters.filters) {
+        delete cleanedFilters.filters.categories
+        // If filters object becomes empty after removing categories, remove it
+        if (Object.keys(cleanedFilters.filters).length === 0) {
+          cleanedFilters.filters = undefined
+        }
+      }
+      catalogStore.filters = cleanedFilters
+    }
     
     await catalogStore.fetchProducts(filters)
     
@@ -86,21 +113,57 @@ const { pending, refresh } = await useAsyncData(
     return catalogStore.products
   },
   { 
-    watch: [routeQuery] 
+    watch: [routeQuery],
+    // SWR-like behavior: show cached data immediately, then refresh in background
+    getCachedData: (key) => {
+      // Don't return cached data from store - it might be from a different page
+      // Let useAsyncData handle caching through its built-in mechanism
+      // The key includes all query params (including page), so cache will be correct
+      return undefined
+    },
+    // Server-side: always fetch fresh data for SEO
+    server: true,
+    // Client-side: use cached data if available, then refresh
+    default: () => [],
   }
 )
 
-// Fetch categories - access store inside callback
-await useAsyncData('catalog-categories', async () => {
-  const catalogStore = useCatalogStore()
-  if (catalogStore.categories.length === 0) {
-    await catalogStore.fetchCategories()
+// Fetch categories with lazy loading + caching
+// Categories change rarely, so we can cache them aggressively
+const { data: categoriesData } = await useLazyAsyncData(
+  'catalog-categories',
+  async () => {
+    const catalogStore = useCatalogStore()
+    if (catalogStore.categories.length === 0) {
+      await catalogStore.fetchCategories()
+    }
+    return catalogStore.categories || []
+  },
+  {
+    // Cache categories for 5 minutes (they change rarely)
+    getCachedData: (key) => {
+      try {
+        const catalogStore = useCatalogStore()
+        if (catalogStore.categories && catalogStore.categories.length > 0) {
+          return catalogStore.categories
+        }
+      } catch {
+        // Store not available
+      }
+      return undefined
+    },
+    server: true,
+    default: () => [],
   }
-  return catalogStore.categories
-})
+)
 
-// Computed values - access store inside computed
+// Computed values - use cached data from useLazyAsyncData or fallback to store
 const products = computed(() => {
+  // Prefer data from useLazyAsyncData (cached)
+  if (productsData.value && productsData.value.length > 0) {
+    return productsData.value
+  }
+  // Fallback to store
   try {
     return useCatalogStore().products
   } catch {
@@ -184,11 +247,17 @@ async function handlePageChange(page: number) {
     query.page = page.toString()
   }
   
-  // Navigate to update URL - this will trigger useAsyncData to refetch
+  // Navigate to update URL - this will trigger useLazyAsyncData to refetch
+  // The watch on routeQuery will detect the change and reload data
   await navigateTo({ path: '/catalog', query }, { replace: true })
   
+  // Force refresh to ensure data is reloaded
+  await refresh()
+  
   // Scroll to top
-  window.scrollTo({ top: 0, behavior: 'smooth' })
+  if (import.meta.client) {
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
 }
 
 // Handle remove single filter

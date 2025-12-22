@@ -215,7 +215,17 @@ export const useCatalogStore = defineStore('catalog', {
       this.error = null
 
       // Merge with current filters
-      const mergedParams = { ...this.filters, ...params }
+      // Deep merge filters: if params.filters is provided, merge it with this.filters.filters
+      // This allows adding new filters while preserving existing ones (e.g., adding brand filter to category filter)
+      const mergedParams: ProductFilter = { ...this.filters, ...params }
+      
+      // Deep merge filters object if both exist
+      if (mergedParams.filters && this.filters.filters) {
+        mergedParams.filters = { ...this.filters.filters, ...mergedParams.filters }
+      } else if (mergedParams.filters === undefined) {
+        // If params.filters is not provided, use existing filters
+        mergedParams.filters = this.filters.filters
+      }
       
       // Validate and normalize sort value
       const validSorts: SortOption[] = ['newest', 'price_asc', 'price_desc']

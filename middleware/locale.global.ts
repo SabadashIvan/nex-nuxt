@@ -16,12 +16,15 @@ export default defineNuxtRouteMiddleware(async () => {
   const storedLocale = getToken(TOKEN_KEYS.LOCALE)
   const storedCurrency = getToken(TOKEN_KEYS.CURRENCY)
 
-  // Set defaults if not stored
-  if (!storedLocale) {
-    setToken(TOKEN_KEYS.LOCALE, DEFAULT_LOCALE)
-  }
-  if (!storedCurrency) {
-    setToken(TOKEN_KEYS.CURRENCY, DEFAULT_CURRENCY)
+  // Set defaults if not stored - only on client to avoid cookie issues during SSR/SWR
+  // During SSR, we'll read from cookies but not write (to avoid header issues)
+  if (import.meta.client) {
+    if (!storedLocale) {
+      setToken(TOKEN_KEYS.LOCALE, DEFAULT_LOCALE)
+    }
+    if (!storedCurrency) {
+      setToken(TOKEN_KEYS.CURRENCY, DEFAULT_CURRENCY)
+    }
   }
 
   // Only try to access store if Pinia is initialized

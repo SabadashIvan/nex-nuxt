@@ -46,6 +46,7 @@ export function getTokenFromCookie(key: string): string | null {
         const value = getCookie(event, key)
         return value || null
       }
+      return null
     } catch {
       // If we can't get the event (e.g., during SWR cache handling),
       // return null instead of using useCookie() which would trigger writes
@@ -206,4 +207,3 @@ export function ensureComparisonToken(): string {
 export function clearAllTokens(): void {
   Object.values(TOKEN_KEYS).forEach(key => removeToken(key))
 }
-

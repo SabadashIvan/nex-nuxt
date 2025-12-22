@@ -1,4 +1,4 @@
-import { defineNuxtConfig } from 'nuxt/config'
+import tailwindcss from "@tailwindcss/vite";
 
 export default defineNuxtConfig({
   runtimeConfig: {
@@ -15,13 +15,18 @@ export default defineNuxtConfig({
 
   modules: [
     '@nuxt/image',
-    '@nuxtjs/tailwindcss',
     '@pinia/nuxt',
     '@nuxt/content',
-    '@nuxt/eslint',
-    '@nuxt/hints',
-    '@pinia/nuxt'
+    '@nuxt/eslint'
   ],
+
+  css: ['./app/assets/css/main.css'],
+
+  vite: {
+    plugins: [
+      tailwindcss(),
+    ],
+  },
 
   routeRules: {
     // Каталог - кэшировать на 1 час (SWR: показываем кэш, обновляем в фоне)

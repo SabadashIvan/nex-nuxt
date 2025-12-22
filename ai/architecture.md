@@ -4,7 +4,7 @@ architecture.md — PART 1
 
 📐 Architecture Overview — Full Detailed Specification
 
-This document provides the complete frontend architecture specification for the Nuxt 3 e-commerce project.
+This document provides the complete frontend architecture specification for the Nuxt 4 e-commerce project.
 It integrates all domains of the platform — Catalog, Cart, Checkout, Auth, Blog, SEO, Payments, System Config, and User Profile — and defines the unified structure required for production-grade implementation.
 
 This file is meant to be used by:
@@ -47,7 +47,7 @@ Error handling rules
 
 The frontend architecture follows:
 
-✔ Nuxt 3 Best Practices
+✔ Nuxt 4 Best Practices
 
 Hybrid SSR/CSR rendering
 
@@ -93,91 +93,126 @@ Tokens stored consistently and safely, across SSR/CSR.
 2. Directory Structure (Full)
 project/
 │
-├─ app.vue
-├─ nuxt.config.ts
-│
-├─ pages/
-│   ├─ index.vue
+├─ app/
+│   ├─ app.vue
 │   │
-│   ├─ catalog/
+│   ├─ pages/
 │   │   ├─ index.vue
-│   │   ├─ [category].vue
-│   │   └─ search.vue (optional)
+│   │   │
+│   │   ├─ catalog/
+│   │   │   ├─ index.vue
+│   │   │   ├─ [category].vue
+│   │   │   └─ search.vue (optional)
+│   │   │
+│   │   ├─ product/
+│   │   │   └─ [slug].vue
+│   │   │
+│   │   ├─ cart.vue
+│   │   ├─ favorites.vue
+│   │   ├─ comparison.vue
+│   │   │
+│   │   ├─ checkout/
+│   │   │   ├─ index.vue             # /checkout  → start session
+│   │   │   ├─ address.vue           # /checkout/address
+│   │   │   ├─ shipping.vue          # /checkout/shipping
+│   │   │   ├─ payment.vue           # /checkout/payment
+│   │   │   └─ confirm.vue           # /checkout/confirm
+│   │   │
+│   │   ├─ profile/
+│   │   │   ├─ index.vue
+│   │   │   ├─ addresses.vue
+│   │   │   ├─ orders.vue
+│   │   │   └─ order/
+│   │   │       └─ [id].vue
+│   │   │
+│   │   ├─ blog/
+│   │   │   ├─ index.vue
+│   │   │   ├─ [slug].vue
+│   │   │   └─ category/
+│   │   │       └─ [slug].vue
+│   │   │
+│   │   └─ auth/
+│   │       ├─ login.vue
+│   │       ├─ register.vue
+│   │       ├─ forgot-password.vue
+│   │       ├─ reset-password.vue
+│   │       └─ email-verification.vue
 │   │
-│   ├─ product/
-│   │   └─ [slug].vue
+│   ├─ components/
+│   │   ├─ ui/                       # buttons, inputs, typography
+│   │   ├─ layout/                   # headers, footers
+│   │   ├─ product/
+│   │   ├─ catalog/
+│   │   ├─ cart/
+│   │   ├─ checkout/
+│   │   ├─ blog/
+│   │   ├─ seo/
+│   │   └─ shared/
 │   │
-│   ├─ cart.vue
-│   ├─ favorites.vue
-│   ├─ comparison.vue
+│   ├─ stores/
+│   │   ├─ auth.store.ts
+│   │   ├─ system.store.ts
+│   │   ├─ cart.store.ts
+│   │   ├─ catalog.store.ts
+│   │   ├─ product.store.ts
+│   │   ├─ favorites.store.ts
+│   │   ├─ comparison.store.ts
+│   │   ├─ checkout.store.ts
+│   │   ├─ orders.store.ts
+│   │   ├─ blog.store.ts
+│   │   └─ seo.store.ts
 │   │
-│   ├─ checkout/
-│   │   ├─ index.vue             # /checkout  → start session
-│   │   ├─ address.vue           # /checkout/address
-│   │   ├─ shipping.vue          # /checkout/shipping
-│   │   ├─ payment.vue           # /checkout/payment
-│   │   └─ confirm.vue           # /checkout/confirm
+│   ├─ composables/
+│   │   ├─ useApi.ts
+│   │   ├─ useAuth.ts
+│   │   ├─ useCart.ts
+│   │   ├─ useCheckout.ts
+│   │   ├─ useFavorites.ts
+│   │   ├─ useComparison.ts
+│   │   ├─ useCatalog.ts
+│   │   ├─ useBlog.ts
+│   │   ├─ useSeo.ts
+│   │   ├─ useLocaleCurrency.ts
+│   │   ├─ usePagination.ts
+│   │   └─ useDebounce.ts
 │   │
-│   ├─ profile/
-│   │   ├─ index.vue
-│   │   ├─ addresses.vue
-│   │   ├─ orders.vue
-│   │   └─ order/
-│   │       └─ [id].vue
+│   ├─ middleware/
+│   │   ├─ auth.global.ts
+│   │   ├─ guest-token.global.ts
+│   │   ├─ cart-token.global.ts
+│   │   ├─ comparison-token.global.ts
+│   │   ├─ seo.global.ts
+│   │   └─ locale.global.ts
 │   │
-│   ├─ blog/
-│   │   ├─ index.vue
-│   │   ├─ [slug].vue
-│   │   └─ category/
-│   │       └─ [slug].vue
+│   ├─ layouts/
+│   │   ├─ default.vue
+│   │   ├─ checkout.vue
+│   │   └─ profile.vue
 │   │
-│   └─ auth/
-│       ├─ login.vue
-│       ├─ register.vue
-│       ├─ forgot-password.vue
-│       ├─ reset-password.vue
-│       └─ email-verification.vue
-│
-├─ components/
-│   ├─ ui/                       # buttons, inputs, typography
-│   ├─ layout/                   # headers, footers
-│   ├─ product/
-│   ├─ catalog/
-│   ├─ cart/
-│   ├─ checkout/
-│   ├─ blog/
-│   ├─ seo/
-│   └─ shared/
-│
-├─ stores/
-│   ├─ auth.store.ts
-│   ├─ system.store.ts
-│   ├─ cart.store.ts
-│   ├─ catalog.store.ts
-│   ├─ product.store.ts
-│   ├─ favorites.store.ts
-│   ├─ comparison.store.ts
-│   ├─ checkout.store.ts
-│   ├─ orders.store.ts
-│   ├─ blog.store.ts
-│   └─ seo.store.ts
-│
-├─ composables/
-│   ├─ useApi.ts
-│   ├─ useAuth.ts
-│   ├─ useCart.ts
-│   ├─ useCheckout.ts
-│   ├─ useFavorites.ts
-│   ├─ useComparison.ts
-│   ├─ useCatalog.ts
-│   ├─ useBlog.ts
-│   ├─ useSeo.ts
-│   ├─ useLocaleCurrency.ts
-│   ├─ usePagination.ts
-│   └─ useDebounce.ts
+│   ├─ plugins/
+│   │   └─ init.client.ts
+│   │
+│   ├─ types/
+│   │   ├─ auth.ts
+│   │   ├─ cart.ts
+│   │   ├─ catalog.ts
+│   │   ├─ product.ts
+│   │   ├─ checkout.ts
+│   │   ├─ system.ts
+│   │   ├─ blog.ts
+│   │   ├─ seo.ts
+│   │   ├─ orders.ts
+│   │   └─ common.ts
+│   │
+│   └─ utils/
+│       ├─ price.ts
+│       ├─ format.ts
+│       ├─ errors.ts
+│       ├─ validator.ts
+│       └─ tokens.ts
 │
 ├─ server/
-│   └─ api/
+│   └─ routes/
 │       ├─ catalog/
 │       ├─ cart/
 │       ├─ checkout/
@@ -185,33 +220,6 @@ project/
 │       ├─ system/
 │       ├─ seo/
 │       └─ auth/
-│
-├─ middleware/
-│   ├─ auth.global.ts
-│   ├─ guest-token.global.ts
-│   ├─ cart-token.global.ts
-│   ├─ comparison-token.global.ts
-│   ├─ seo.global.ts
-│   └─ locale.global.ts
-│
-├─ types/
-│   ├─ auth.ts
-│   ├─ cart.ts
-│   ├─ catalog.ts
-│   ├─ product.ts
-│   ├─ checkout.ts
-│   ├─ system.ts
-│   ├─ blog.ts
-│   ├─ seo.ts
-│   ├─ orders.ts
-│   └─ common.ts
-│
-├─ utils/
-│   ├─ price.ts
-│   ├─ format.ts
-│   ├─ errors.ts
-│   ├─ validator.ts
-│   └─ tokens.ts
 │
 └─ public/
     ├─ images/

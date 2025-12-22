@@ -112,7 +112,6 @@ const { data: category, pending, error, refresh } = await useLazyAsyncData(
   {
     server: true,
     default: () => null,
-    watch: [() => route.fullPath],
     // SWR-like caching: return cached category if available (category doesn't change with pagination)
     getCachedData: (key) => {
       try {
@@ -128,6 +127,11 @@ const { data: category, pending, error, refresh } = await useLazyAsyncData(
     },
   }
 )
+
+// Watch route changes and refresh data (Nuxt 4 compatible)
+watch(() => route.fullPath, () => {
+  refresh()
+})
 
 // Handle 404 - check after data loads
 watch([pending, category, error], ([isPending, cat, err]) => {

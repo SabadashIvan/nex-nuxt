@@ -113,7 +113,6 @@ const { data: productsData, pending, refresh, error } = await useLazyAsyncData(
     return catalogStore.products
   },
   { 
-    watch: [routeQuery],
     // SWR-like behavior: show cached data immediately, then refresh in background
     getCachedData: (key) => {
       // Don't return cached data from store - it might be from a different page
@@ -127,6 +126,11 @@ const { data: productsData, pending, refresh, error } = await useLazyAsyncData(
     default: () => [],
   }
 )
+
+// Watch route query changes and refresh data (Nuxt 4 compatible)
+watch(routeQuery, () => {
+  refresh()
+}, { deep: true })
 
 // Fetch categories with lazy loading + caching
 // Categories change rarely, so we can cache them aggressively

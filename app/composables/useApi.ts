@@ -257,10 +257,12 @@ export function useApi() {
     options: ApiRequestOptions = {}
   ): Promise<T> {
     const { method = 'GET', body, query, retry = 0, credentials = true, ...headerOptions } = options
+    const normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`
+    const requiresCsrf = shouldSkipPrefix(normalizedEndpoint)
     
     // For modifying requests (POST, PUT, PATCH, DELETE), ensure CSRF cookie is fetched
     // Only on client-side and only if XSRF token is not already available
-    if (import.meta.client && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+    if (import.meta.client && requiresCsrf && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
       const xsrfToken = getXsrfToken()
       if (!xsrfToken) {
         // Fetch CSRF cookie before making the request
@@ -270,6 +272,9 @@ export function useApi() {
     
     const path = buildUrl(endpoint, query, headerOptions)
     const headers = buildHeaders(headerOptions)
+    if (!requiresCsrf) {
+      delete headers['X-XSRF-TOKEN']
+    }
 
     // All requests go directly to backend (both SSR and CSR)
     const baseUrl = getBaseUrl()
@@ -415,4 +420,3 @@ export function useApiData<T>(
 
 // Type exports
 export type { ApiError }
-

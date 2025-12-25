@@ -4,12 +4,18 @@
  */
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig()
-  const backendUrl = config.apiBackendUrl || 'http://localhost:8000'
+  const backendUrl = config.apiBackendUrl || 'https://api.nexora-room15.store'
+  
+  // Forward cookies from client to backend
+  const cookies = getHeader(event, 'cookie') || ''
 
   try {
     const response = await $fetch.raw(`${backendUrl}/sanctum/csrf-cookie`, {
       method: 'GET',
       credentials: 'include',
+      headers: {
+        'Cookie': cookies,
+      },
     })
 
     // Forward Set-Cookie headers from backend to client

@@ -81,10 +81,9 @@ export const useAuthStore = defineStore('auth', {
     },
 
     /**
-     * Login user (session-based)
-     * 1. Fetch CSRF cookie
-     * 2. POST to /login
-     * 3. Fetch user data
+     * Login user (cookie-based Sanctum auth)
+     * CSRF cookie is automatically fetched by useApi before POST requests
+     * Handles 419 (CSRF) and 422 (validation) errors
      */
     async login(payload: LoginPayload): Promise<boolean> {
       // Capture Nuxt context at the start to preserve it after await
@@ -94,13 +93,11 @@ export const useAuthStore = defineStore('auth', {
       this.clearErrors()
 
       try {
-        // Step 1: Get CSRF cookie
-        await nuxtApp.runWithContext(async () => await api.fetchCsrfCookie())
-        
-        // Step 2: Login (returns 204 No Content)
+        // Step 1: Login (CSRF cookie is automatically fetched by useApi)
+        // Returns 204 No Content on success
         await nuxtApp.runWithContext(async () => await api.post('/login', payload))
         
-        // Step 3: Fetch user data
+        // Step 2: Fetch user data
         const user = await nuxtApp.runWithContext(async () => 
           await api.get<User>('/auth/user')
         )
@@ -113,8 +110,17 @@ export const useAuthStore = defineStore('auth', {
         return true
       } catch (error) {
         const apiError = parseApiError(error)
+        
+        // Handle 419 CSRF token mismatch
+        if (apiError.status === 419) {
+          this.error = 'CSRF token expired. Please try again.'
+          // useApi already retried with new CSRF token, but login failed
+          // User should retry manually
+        } else {
         this.error = apiError.message
         this.fieldErrors = getFieldErrors(apiError)
+        }
+        
         return false
       } finally {
         this.loading = false
@@ -122,10 +128,9 @@ export const useAuthStore = defineStore('auth', {
     },
 
     /**
-     * Register new user (session-based)
-     * 1. Fetch CSRF cookie
-     * 2. POST to /register
-     * 3. Fetch user data
+     * Register new user (cookie-based Sanctum auth)
+     * CSRF cookie is automatically fetched by useApi before POST requests
+     * Handles 419 (CSRF) and 422 (validation) errors
      */
     async register(payload: RegisterPayload): Promise<boolean> {
       // Capture Nuxt context at the start to preserve it after await
@@ -135,13 +140,11 @@ export const useAuthStore = defineStore('auth', {
       this.clearErrors()
 
       try {
-        // Step 1: Get CSRF cookie
-        await nuxtApp.runWithContext(async () => await api.fetchCsrfCookie())
-        
-        // Step 2: Register (returns 204 No Content)
+        // Step 1: Register (CSRF cookie is automatically fetched by useApi)
+        // Returns 204 No Content on success
         await nuxtApp.runWithContext(async () => await api.post('/register', payload))
         
-        // Step 3: Fetch user data
+        // Step 2: Fetch user data
         const user = await nuxtApp.runWithContext(async () => 
           await api.get<User>('/auth/user')
         )
@@ -150,8 +153,15 @@ export const useAuthStore = defineStore('auth', {
         return true
       } catch (error) {
         const apiError = parseApiError(error)
+        
+        // Handle 419 CSRF token mismatch
+        if (apiError.status === 419) {
+          this.error = 'CSRF token expired. Please try again.'
+        } else {
         this.error = apiError.message
         this.fieldErrors = getFieldErrors(apiError)
+        }
+        
         return false
       } finally {
         this.loading = false
@@ -209,6 +219,7 @@ export const useAuthStore = defineStore('auth', {
 
     /**
      * Request password reset email
+     * CSRF cookie is automatically fetched by useApi
      */
     async forgotPassword(payload: ForgotPasswordPayload): Promise<boolean> {
       // Capture Nuxt context at the start to preserve it after await
@@ -219,9 +230,7 @@ export const useAuthStore = defineStore('auth', {
       this.passwordResetStatus = 'idle'
 
       try {
-        // Get CSRF cookie first
-        await nuxtApp.runWithContext(async () => await api.fetchCsrfCookie())
-        
+        // CSRF cookie is automatically fetched by useApi before POST
         const response = await nuxtApp.runWithContext(async () => 
           await api.post<ForgotPasswordResponse>('/forgot-password', payload)
         )
@@ -231,8 +240,14 @@ export const useAuthStore = defineStore('auth', {
         return true
       } catch (error) {
         const apiError = parseApiError(error)
+        
+        if (apiError.status === 419) {
+          this.error = 'CSRF token expired. Please try again.'
+        } else {
         this.error = apiError.message
         this.fieldErrors = getFieldErrors(apiError)
+        }
+        
         this.passwordResetStatus = 'error'
         return false
       } finally {
@@ -242,6 +257,7 @@ export const useAuthStore = defineStore('auth', {
 
     /**
      * Reset password with token
+     * CSRF cookie is automatically fetched by useApi
      */
     async resetPassword(payload: ResetPasswordPayload): Promise<boolean> {
       // Capture Nuxt context at the start to preserve it after await
@@ -251,9 +267,7 @@ export const useAuthStore = defineStore('auth', {
       this.clearErrors()
 
       try {
-        // Get CSRF cookie first
-        await nuxtApp.runWithContext(async () => await api.fetchCsrfCookie())
-        
+        // CSRF cookie is automatically fetched by useApi before POST
         const response = await nuxtApp.runWithContext(async () => 
           await api.post<ResetPasswordResponse>('/reset-password', payload)
         )
@@ -263,8 +277,14 @@ export const useAuthStore = defineStore('auth', {
         return true
       } catch (error) {
         const apiError = parseApiError(error)
+        
+        if (apiError.status === 419) {
+          this.error = 'CSRF token expired. Please try again.'
+        } else {
         this.error = apiError.message
         this.fieldErrors = getFieldErrors(apiError)
+        }
+        
         this.passwordResetStatus = 'error'
         return false
       } finally {

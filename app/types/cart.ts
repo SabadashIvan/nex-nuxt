@@ -69,6 +69,7 @@ export interface CartState {
   cartToken: string | null
   loading: boolean
   error: string | null
+  fieldErrors: Record<string, string>
   appliedCoupons: AppliedCoupon[]
 }
 

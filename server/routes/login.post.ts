@@ -11,14 +11,18 @@ export default defineEventHandler(async (event) => {
   const cookies = getHeader(event, 'cookie') || ''
 
   try {
+    // Get XSRF token from cookie if available
+    const xsrfToken = getCookie(event, 'XSRF-TOKEN') || ''
+    
     const response = await $fetch.raw(`${backendUrl}/login`, {
       method: 'POST',
       body,
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
         'Cookie': cookies,
-        'X-XSRF-TOKEN': getCookie(event, 'XSRF-TOKEN') || '',
+        ...(xsrfToken && { 'X-XSRF-TOKEN': xsrfToken }),
       },
     })
 

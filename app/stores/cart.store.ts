@@ -17,7 +17,7 @@ import type {
   CouponPayload,
   AppliedCoupon,
 } from '~/types'
-import { parseApiError, getErrorMessage, CHECKOUT_ERRORS } from '~/utils/errors'
+import { parseApiError, getErrorMessage, getFieldErrors, CHECKOUT_ERRORS } from '~/utils/errors'
 import { ensureCartToken, getToken, TOKEN_KEYS, setToken } from '~/utils/tokens'
 
 export const useCartStore = defineStore('cart', {
@@ -27,6 +27,7 @@ export const useCartStore = defineStore('cart', {
     loading: false,
     error: null,
     appliedCoupons: [],
+    fieldErrors: {}, // For validation errors (422)
   }),
 
   getters: {
@@ -166,9 +167,29 @@ export const useCartStore = defineStore('cart', {
         })
         
         this.cart = cart
+        this.error = null
+        this.fieldErrors = {}
         return true
       } catch (error) {
-        this.error = getErrorMessage(error)
+        const apiError = parseApiError(error)
+        
+        // Handle 419 CSRF token mismatch
+        // useApi already retries once, but if it still fails, show error
+        if (apiError.status === 419) {
+          this.error = 'CSRF token expired. Please try again.'
+          this.fieldErrors = {}
+        } 
+        // Handle 422 validation errors
+        else if (apiError.status === 422) {
+          this.error = apiError.message || 'Validation error'
+          this.fieldErrors = getFieldErrors(apiError)
+        } 
+        // Handle other errors
+        else {
+          this.error = getErrorMessage(error)
+          this.fieldErrors = {}
+        }
+        
         console.error('Add to cart error:', error)
         return false
       } finally {
@@ -198,9 +219,28 @@ export const useCartStore = defineStore('cart', {
           headers: Object.keys(headers).length > 0 ? headers : undefined
         })
         this.cart = cart
+        this.error = null
+        this.fieldErrors = {}
         return true
       } catch (error) {
-        this.error = getErrorMessage(error)
+        const apiError = parseApiError(error)
+        
+        // Handle 419 CSRF token mismatch
+        if (apiError.status === 419) {
+          this.error = 'CSRF token expired. Please try again.'
+          this.fieldErrors = {}
+        } 
+        // Handle 422 validation errors
+        else if (apiError.status === 422) {
+          this.error = apiError.message || 'Validation error'
+          this.fieldErrors = getFieldErrors(apiError)
+        } 
+        // Handle other errors
+        else {
+          this.error = getErrorMessage(error)
+          this.fieldErrors = {}
+        }
+        
         console.error('Update cart item error:', error)
         return false
       } finally {
@@ -229,9 +269,23 @@ export const useCartStore = defineStore('cart', {
           headers: Object.keys(headers).length > 0 ? headers : undefined
         })
         this.cart = cart
+        this.error = null
+        this.fieldErrors = {}
         return true
       } catch (error) {
-        this.error = getErrorMessage(error)
+        const apiError = parseApiError(error)
+        
+        if (apiError.status === 419) {
+          this.error = 'CSRF token expired. Please try again.'
+          this.fieldErrors = {}
+        } else if (apiError.status === 422) {
+          this.error = apiError.message || 'Validation error'
+          this.fieldErrors = getFieldErrors(apiError)
+        } else {
+          this.error = getErrorMessage(error)
+          this.fieldErrors = {}
+        }
+        
         console.error('Remove cart item error:', error)
         return false
       } finally {
@@ -261,9 +315,23 @@ export const useCartStore = defineStore('cart', {
           headers: Object.keys(headers).length > 0 ? headers : undefined
         })
         this.cart = cart
+        this.error = null
+        this.fieldErrors = {}
         return true
       } catch (error) {
-        this.error = getErrorMessage(error)
+        const apiError = parseApiError(error)
+        
+        if (apiError.status === 419) {
+          this.error = 'CSRF token expired. Please try again.'
+          this.fieldErrors = {}
+        } else if (apiError.status === 422) {
+          this.error = apiError.message || 'Validation error'
+          this.fieldErrors = getFieldErrors(apiError)
+        } else {
+          this.error = getErrorMessage(error)
+          this.fieldErrors = {}
+        }
+        
         console.error('Update item options error:', error)
         return false
       } finally {
@@ -299,10 +367,23 @@ export const useCartStore = defineStore('cart', {
         if (response.coupon) {
           this.appliedCoupons.push(response.coupon)
         }
+        this.error = null
+        this.fieldErrors = {}
         return true
       } catch (error) {
         const apiError = parseApiError(error)
-        this.error = apiError.message
+        
+        if (apiError.status === 419) {
+          this.error = 'CSRF token expired. Please try again.'
+          this.fieldErrors = {}
+        } else if (apiError.status === 422) {
+          this.error = apiError.message || 'Validation error'
+          this.fieldErrors = getFieldErrors(apiError)
+        } else {
+          this.error = apiError.message || getErrorMessage(error)
+          this.fieldErrors = {}
+        }
+        
         console.error('Apply coupon error:', error)
         return false
       } finally {
@@ -332,9 +413,23 @@ export const useCartStore = defineStore('cart', {
         })
         this.cart = cart
         this.appliedCoupons = this.appliedCoupons.filter(c => c.code !== code)
+        this.error = null
+        this.fieldErrors = {}
         return true
       } catch (error) {
-        this.error = getErrorMessage(error)
+        const apiError = parseApiError(error)
+        
+        if (apiError.status === 419) {
+          this.error = 'CSRF token expired. Please try again.'
+          this.fieldErrors = {}
+        } else if (apiError.status === 422) {
+          this.error = apiError.message || 'Validation error'
+          this.fieldErrors = getFieldErrors(apiError)
+        } else {
+          this.error = getErrorMessage(error)
+          this.fieldErrors = {}
+        }
+        
         console.error('Remove coupon error:', error)
         return false
       } finally {

@@ -1,9 +1,9 @@
 /**
  * Core API composable for all network requests
- * Handles session-based auth, CSRF tokens, SSR/CSR context, and error processing
+ * Handles cookie-based Sanctum auth, CSRF tokens, SSR/CSR context, and error processing
  */
 
-import { useNuxtApp, useRouter, useRuntimeConfig, useCookie, useRequestEvent } from '#app'
+import { useNuxtApp, useRouter, useRuntimeConfig, useCookie, useRequestEvent, useRequestHeaders } from '#app'
 import { getCookie } from 'h3'
 import type { ApiError } from '~/types'
 import { parseApiError, isAuthError } from '~/utils/errors'
@@ -57,11 +57,21 @@ function shouldSkipPrefix(endpoint: string): boolean {
 
 /**
  * Get XSRF token from cookie for CSRF protection
+ * Works in both SSR and CSR contexts
  */
-function getXsrfToken(): string | null {
-  if (import.meta.server) return null
+function getXsrfToken(event?: ReturnType<typeof useRequestEvent>): string | null {
+  if (import.meta.server) {
+    // During SSR, read from request event
+    if (event) {
+      const token = getCookie(event, 'XSRF-TOKEN')
+      if (token) {
+        return decodeURIComponent(token)
+      }
+    }
+    return null
+  }
   
-  // Laravel stores XSRF token in a cookie named XSRF-TOKEN
+  // On client, read from document.cookie
   const match = document.cookie.match(/XSRF-TOKEN=([^;]+)/)
   if (match) {
     // The cookie value is URL-encoded
@@ -130,26 +140,55 @@ export function useApi() {
       : (config.public.apiBackendUrl as string || 'http://localhost:8000')
   }
   
+  // CSRF token cache to avoid multiple requests
+  let csrfTokenCache: string | null = null
+  let csrfTokenFetched = false
+
   /**
    * Fetch CSRF cookie from Laravel Sanctum
-   * Must be called before login/register requests
-   * Goes through Nuxt server route to avoid CORS
+   * Must be called before POST/PUT/PATCH/DELETE requests
+   * Caches the token to avoid multiple requests
    */
   async function fetchCsrfCookie(): Promise<void> {
+    // If we already have a token cached, skip
+    if (csrfTokenCache && csrfTokenFetched) {
+      return
+    }
+
     const baseUrl = getBaseUrl()
     
-    return nuxtApp.runWithContext(async () => {
-      await $fetch(`${baseUrl}/sanctum/csrf-cookie`, {
-        credentials: 'include',
+    try {
+      await nuxtApp.runWithContext(async () => {
+        await $fetch(`${baseUrl}/sanctum/csrf-cookie`, {
+          method: 'GET',
+          credentials: 'include',
+        })
       })
-    })
+      
+      // Mark as fetched (token will be read from cookie on next request)
+      csrfTokenFetched = true
+      
+      // Clear cache to force reading fresh token from cookie
+      csrfTokenCache = null
+    } catch (error) {
+      console.error('Failed to fetch CSRF cookie:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Clear CSRF token cache (useful after logout or on 419 error)
+   */
+  function clearCsrfCache(): void {
+    csrfTokenCache = null
+    csrfTokenFetched = false
   }
 
   /**
    * Build request headers with tokens
    * Uses lazy cookie access to avoid writes during SSR/SWR cache handling
    */
-  function buildHeaders(options: UseApiOptions = {}): Record<string, string> {
+  function buildHeaders(options: UseApiOptions = {}, event?: ReturnType<typeof useRequestEvent>): Record<string, string> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
@@ -158,9 +197,12 @@ export function useApi() {
     }
 
     // Add XSRF token for CSRF protection (Laravel Sanctum)
-    const xsrfToken = getXsrfToken()
+    // For modifying requests, XSRF token is required
+    const xsrfToken = getXsrfToken(event)
     if (xsrfToken) {
       headers['X-XSRF-TOKEN'] = xsrfToken
+      // Cache the token
+      csrfTokenCache = xsrfToken
     }
 
     // Add cart token - use lazy cookie access to avoid context issues
@@ -250,26 +292,30 @@ export function useApi() {
   }
 
   /**
-   * Core fetch function
+   * Core fetch function with automatic CSRF handling and retry logic
    */
   async function request<T>(
     endpoint: string,
-    options: ApiRequestOptions = {}
+    options: ApiRequestOptions = {},
+    retryCount = 0
   ): Promise<T> {
     const { method = 'GET', body, query, retry = 0, credentials = true, ...headerOptions } = options
+    const isModifyingRequest = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)
     
-    // For modifying requests (POST, PUT, PATCH, DELETE), ensure CSRF cookie is fetched
-    // Only on client-side and only if XSRF token is not already available
-    if (import.meta.client && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
-      const xsrfToken = getXsrfToken()
-      if (!xsrfToken) {
+    // Get request event for SSR cookie access
+    const event = import.meta.server ? useRequestEvent() : undefined
+    
+    // For modifying requests, ensure CSRF cookie is fetched before making the request
+    if (isModifyingRequest) {
+      const xsrfToken = getXsrfToken(event)
+      if (!xsrfToken && !csrfTokenFetched) {
         // Fetch CSRF cookie before making the request
         await nuxtApp.runWithContext(() => fetchCsrfCookie())
       }
     }
     
     const path = buildUrl(endpoint, query, headerOptions)
-    const headers = buildHeaders(headerOptions)
+    const headers = buildHeaders(headerOptions, event)
 
     // All requests go directly to backend (both SSR and CSR)
     const baseUrl = getBaseUrl()
@@ -280,31 +326,53 @@ export function useApi() {
       authPath => endpoint.startsWith(authPath) || endpoint.includes(authPath)
     )
 
-    // 2. Используем runWithContext, чтобы Nuxt "помнил" себя внутри асинхронного вызова
+    // Prepare request options with SSR cookie proxying
+    const requestOptions: Parameters<typeof $fetch>[1] = {
+      method,
+      headers,
+      body: body ? body : undefined,
+      retry: 0, // We handle retry manually for CSRF
+      // Always include credentials for cookie-based auth
+      credentials: credentials ? 'include' : 'omit',
+    }
+
+    // During SSR, proxy cookies from client request to backend
+    if (import.meta.server && event) {
+      const requestHeaders = useRequestHeaders(['cookie'])
+      if (requestHeaders.cookie) {
+        requestOptions.headers = {
+          ...requestOptions.headers,
+          Cookie: requestHeaders.cookie,
+        }
+      }
+    }
+
+    // Execute request with context preservation
     return nuxtApp.runWithContext(async () => {
       try {
-        return await $fetch<T>(url, {
-          method,
-          headers,
-          body: body ? body : undefined,
-          retry,
-          // Include credentials for session-based auth (cookies)
-          credentials: credentials ? 'include' : 'omit',
-        })
+        return await $fetch<T>(url, requestOptions)
       } catch (error: unknown) {
         const apiError = parseApiError(error)
         
-        // Обработка 401 ошибки
+        // Handle 419 CSRF token mismatch - retry once after fetching new CSRF cookie
+        if (apiError.status === 419 && isModifyingRequest && retryCount === 0) {
+          // Clear CSRF cache and fetch new token
+          clearCsrfCache()
+          await fetchCsrfCookie()
+          
+          // Retry the request once
+          return request<T>(endpoint, options, retryCount + 1)
+        }
+        
+        // Handle 401 unauthorized - auto logout (except for auth endpoints)
         if (isAuthError(apiError) && !isAuthEndpoint && import.meta.client) {
           try {
-            // Передаем $pinia явно, чтобы стор не пытался найти её через контекст
             if (nuxtApp.$pinia) {
               const authStore = useAuthStore(nuxtApp.$pinia)
               await authStore.logout()
               router.push('/auth/login' as any)
             }
           } catch (storeError) {
-            // Store access failed, skip auto-logout
             console.warn('Could not access auth store for auto-logout:', storeError)
           }
         }
@@ -376,6 +444,7 @@ export function useApi() {
     patch,
     delete: del,
     fetchCsrfCookie,
+    clearCsrfCache,
     buildHeaders,
     buildUrl,
   }

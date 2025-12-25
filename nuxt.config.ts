@@ -4,13 +4,13 @@ export default defineNuxtConfig({
   compatibilityDate: '2025-12-22',
   
   runtimeConfig: {
-    apiBackendUrl: process.env.NUXT_API_BACKEND_URL || 'http://localhost:8000',
+    apiBackendUrl: process.env.NUXT_API_BACKEND_URL || 'https://api.nexora-room15.store',
     apiSecret: process.env.NUXT_API_SECRET,
     public: {
       apiBackendUrl:
         process.env.NUXT_PUBLIC_API_BACKEND_URL ||
         process.env.NUXT_API_BACKEND_URL ||
-        'http://localhost:8000',
+        'https://api.nexora-room15.store',
       siteUrl: process.env.NUXT_PUBLIC_SITE_URL || 'http://localhost:3000',
     },
   },
@@ -19,8 +19,22 @@ export default defineNuxtConfig({
     '@nuxt/image',
     '@pinia/nuxt',
     '@nuxt/content',
-    '@nuxt/eslint'
+    '@nuxt/eslint',
+    'nuxt-auth-sanctum'
   ],
+
+  sanctum: {
+    baseUrl: process.env.NUXT_PUBLIC_API_BACKEND_URL || 'https://api.nexora-room15.store',
+    origin: process.env.NUXT_PUBLIC_SITE_URL || 'http://localhost:3000',
+    endpoints: {
+      csrf: '/sanctum/csrf-cookie',
+      login: '/login',
+      logout: '/logout',
+      user: '/api/v1/auth/user',
+    },
+    redirectIfAuthenticated: '/',
+    redirectIfUnauthenticated: '/auth/login',
+  },
 
   css: ['./app/assets/css/main.css'],
 
